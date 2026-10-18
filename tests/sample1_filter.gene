@@ -1,0 +1,18 @@
+gene gc_filter(dna seq)   ^^ keeps only the G and C bases of a DNA sequence
+    "" -> dna result
+    cycle i across seq
+        when seq@i = 'G' either seq@i = 'C'
+            fuse result seq@i -> result
+        stop
+    stop
+    express result
+stop
+
+gene nucleus()
+    "ATGGCCATTGTA" -> dna g
+    report gc_filter(g)
+    report ~g
+
+    transcribe(g) -> rna r
+    report r
+stop

@@ -1,0 +1,14 @@
+# Build artifacts
+bin/
+genec
+src/parser.tab.c
+src/parser.tab.h
+src/lex.yy.c
+src/*.o
+*.o
+*.out
+
+# System / editor files
+.DS_Store
+Thumbs.db
+*.Zone.Identifier

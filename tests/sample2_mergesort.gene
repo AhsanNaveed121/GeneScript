@@ -1,0 +1,39 @@
+gene merge(dna a, dna b)   ^^ joins two sorted sequences into one
+    when a = ""
+        express b
+    stop
+    when b = ""
+        express a
+    stop
+    when head(a) < head(b)
+        express fuse head(a) merge(tail(a), b)
+    otherwise
+        express fuse head(b) merge(a, tail(b))
+    stop
+stop
+
+gene split_even(dna s)   ^^ bases at positions 0, 2, 4, ...
+    when s = ""
+        express s
+    stop
+    express fuse head(s) split_odd(tail(s))
+stop
+
+gene split_odd(dna s)   ^^ bases at positions 1, 3, 5, ...
+    when s = ""
+        express s
+    stop
+    express split_even(tail(s))
+stop
+
+gene merge_sort(dna s)   ^^ sorts the bases of a DNA sequence
+    when tail(s) = ""
+        express s
+    stop
+    express merge(merge_sort(split_even(s)), merge_sort(split_odd(s)))
+stop
+
+gene nucleus()
+    "GATTACA" -> dna g
+    report merge_sort(g)
+stop
