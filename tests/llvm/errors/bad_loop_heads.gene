@@ -1,0 +1,11 @@
+^^ cycle bounds must be integer literals, #s or an enclosing counter;
+^^ cycle ... across needs a sequence.
+gene nucleus()
+    "ACGT" -> dna g
+    cycle i from 0 to g
+    stop
+    cycle i from #g to head(g)
+    stop
+    cycle k across #g
+    stop
+stop

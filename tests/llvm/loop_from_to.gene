@@ -1,0 +1,24 @@
+^^ cycle i from a to b: i = a, a+1, ..., b-1.
+gene nucleus()
+    "ACGTAC" -> dna g
+    "" -> dna all
+    cycle i from 0 to #g        ^^ #s bound
+        fuse all g@i -> all
+    stop
+    report all
+
+    "" -> dna mid
+    cycle i from 2 to 5         ^^ literal bounds
+        fuse mid g@i -> mid
+    stop
+    report mid
+
+    ^^ bounds are evaluated once: shrinking g does not shorten the loop
+    "" -> dna count
+    cycle i from 0 to #g
+        fuse count "A" -> count
+        tail(g) -> g
+    stop
+    report count
+    report g
+stop

@@ -1,0 +1,47 @@
+^^ bound / unbound, both / either / lacks, precedence and short-circuiting.
+gene nucleus()
+    "ACGT" -> dna g
+    when bound
+        report "A"
+    stop
+    when unbound
+        report "C"
+    otherwise
+        report "G"
+    stop
+    when lacks unbound
+        report "AA"
+    stop
+    when bound both g = "ACGT"
+        report "CC"
+    stop
+    when unbound either head(g) = 'A'
+        report "GG"
+    stop
+    when lacks (g = "") both (tail(g) = "CGT" either g = "")
+        report "TT"
+    stop
+    when bound either unbound both unbound      ^^ both binds tighter: true
+        report "AAA"
+    stop
+    when lacks (bound both unbound)
+        report "TTT"
+    stop
+    when (g@0 < g@1) both (g@2 > 'C')
+        report "ACGT"
+    stop
+
+    ^^ short-circuit: the right side would be a runtime error
+    ^^ (g is not a single base), so it must not run
+    when unbound both g < 'C'
+        report "CCC"
+    stop
+    when bound either g < 'C'
+        report "GGG"
+    stop
+    when lacks (bound either g < 'C')
+        report "CCCC"
+    otherwise
+        report "GGGG"
+    stop
+stop

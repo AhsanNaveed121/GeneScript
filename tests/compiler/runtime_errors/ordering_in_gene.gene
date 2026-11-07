@@ -1,0 +1,13 @@
+^^ A runtime error inside a gene: output so far is kept, the program exits with status 1.
+gene less(dna a, dna b)
+    when a < b
+        express a
+    stop
+    express b
+stop
+
+gene nucleus()
+    report less('A', 'C')
+    report less("AC", 'G')          ^^ "AC" is not a single base
+    report "TTTT"
+stop

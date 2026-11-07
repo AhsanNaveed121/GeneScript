@@ -1,0 +1,30 @@
+^^ Conditions: when, when/otherwise, otherwise-when chains and nesting,
+^^ with express inside the branches.
+gene classify(dna b)
+    when b = 'A'
+        express "A"
+    otherwise when b = 'C'
+        express "CC"
+    otherwise when b = 'G'
+        express "GGG"
+    otherwise
+        express "TTTT"
+    stop
+stop
+
+gene nucleus()
+    "TGCA" -> dna g
+    cycle i across g
+        report classify(g@i)
+    stop
+    when tail(g) = "GCA"
+        when head(g) = 'T'
+            report "TT"
+        otherwise
+            report "AA"
+        stop
+    stop
+    when g = ""
+        report "CCC"
+    stop
+stop

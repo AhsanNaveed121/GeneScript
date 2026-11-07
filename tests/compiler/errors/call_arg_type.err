@@ -1,0 +1,5 @@
+tests/compiler/errors/call_arg_type.gene:8: argument 1 of gene 'only_dna' must be dna, but got rna.
+              DNA and RNA are separate types; a parameter accepts only its declared type.
+tests/compiler/errors/call_arg_type.gene:9: invalid base 'U' in DNA literal.
+              base 'U' is RNA only; DNA allows only A, C, G, T.
+Compilation stopped: 2 errors.

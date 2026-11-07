@@ -1,0 +1,9 @@
+tests/llvm/errors/condition_not_boolean.gene:4: 'when' needs a condition, not dna.
+              use bound, unbound or a comparison such as 's = ""' or 's@i < 'G''.
+tests/llvm/errors/condition_not_boolean.gene:7: 'grow until' needs a condition, not dna.
+              use bound, unbound or a comparison such as 's = ""' or 's@i < 'G''.
+tests/llvm/errors/condition_not_boolean.gene:10: 'lacks' needs a condition, not dna.
+              use bound, unbound or a comparison such as 's = ""' or 's@i < 'G''.
+tests/llvm/errors/condition_not_boolean.gene:13: 'both' needs a condition, not dna.
+              use bound, unbound or a comparison such as 's = ""' or 's@i < 'G''.
+Compilation stopped: 4 errors.

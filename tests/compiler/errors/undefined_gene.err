@@ -1,0 +1,3 @@
+tests/compiler/errors/undefined_gene.gene:3: call to undefined gene 'mutate'.
+              define it with 'gene mutate(...) ... stop' anywhere in the file.
+Compilation stopped: 1 error.

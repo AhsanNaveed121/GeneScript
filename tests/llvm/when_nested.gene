@@ -1,0 +1,27 @@
+^^ Nested conditions, with variables declared at different depths.
+gene nucleus()
+    "GC" -> dna g
+    when head(g) = 'G'
+        report "G"
+        when tail(g) = 'C'
+            report g
+            when g = "GT"
+                report "TTT"
+            otherwise
+                "A" -> dna deep
+                report fuse g deep
+            stop
+        otherwise
+            report "AAA"
+        stop
+        when tail(g) = 'A'      ^^ nested chain inside a branch
+            report "A"
+        otherwise when head(g) = 'G'
+            fuse g "T" -> dna gt
+            report gt
+        stop
+    otherwise
+        report "CCC"
+    stop
+    report g
+stop

@@ -1,0 +1,27 @@
+^^ Control flow over empty sequences.
+gene nucleus()
+    "" -> dna e
+    cycle i across e            ^^ zero passes
+        report "A"
+    stop
+    cycle i from 0 to #e        ^^ zero passes
+        report "C"
+    stop
+    grow until e = ""           ^^ already true
+        report "G"
+    stop
+    when e = ""
+        report "TT"
+    stop
+    when head(e) = ""           ^^ head of "" is ""
+        report "TTT"
+    stop
+    "" -> rna r
+    cycle i across r
+        report r@i
+    stop
+    cycle i across ""
+        report "AAAA"
+    stop
+    report e
+stop

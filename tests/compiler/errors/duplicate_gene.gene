@@ -1,0 +1,12 @@
+^^ Gene names must be unique.
+gene copy(dna s)
+    express s
+stop
+
+gene copy(dna s)
+    express ~s
+stop
+
+gene nucleus()
+    report copy("ACGT")
+stop

@@ -1,0 +1,3 @@
+tests/compiler/errors/duplicate_gene.gene:6: duplicate gene 'copy'.
+              gene 'copy' is already defined at line 2; each gene name must be unique.
+Compilation stopped: 1 error.

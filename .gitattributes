@@ -2,3 +2,6 @@ tests/expected/*.out text eol=lf
 *.sh text eol=lf
 tests/llvm/expected/*.out text eol=lf
 tests/llvm/errors/*.err text eol=lf
+tests/compiler/expected/*.out text eol=lf
+tests/compiler/runtime_errors/expected/*.out text eol=lf
+tests/compiler/errors/*.err text eol=lf

@@ -1,0 +1,3 @@
+tests/llvm/errors/skip_outside_loop.gene:4: skip (continue) statement outside of any loop.
+              skip moves to the next pass of the innermost cycle or grow until loop.
+Compilation stopped: 1 error.

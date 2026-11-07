@@ -1,0 +1,3 @@
+tests/compiler/errors/nucleus_with_params.gene:2: gene nucleus() must take 0 parameters.
+              Execution starts at nucleus(); it takes no arguments.
+Compilation stopped: 1 error.

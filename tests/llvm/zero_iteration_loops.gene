@@ -1,0 +1,21 @@
+^^ Loops whose body never runs.
+gene nucleus()
+    "ACGT" -> dna g
+    cycle i from 3 to 3         ^^ from = to
+        report "A"
+    stop
+    cycle i from 4 to 1         ^^ from > to
+        report "C"
+    stop
+    cycle i from 0 to 0         ^^ empty body as well
+    stop
+    grow until bound
+        report "G"
+    stop
+    cycle i across g
+        cycle j from i to i     ^^ inner loop with equal counter bounds
+            report "T"
+        stop
+    stop
+    report g
+stop

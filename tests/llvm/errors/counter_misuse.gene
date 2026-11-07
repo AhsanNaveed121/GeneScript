@@ -1,0 +1,15 @@
+^^ Loop counters are read-only integers that exist only inside their loop.
+gene nucleus()
+    "ACGT" -> dna g
+    cycle i across g
+        "A" -> i                ^^ counters are read-only
+        when i = i              ^^ counters are not sequences
+            report g
+        stop
+        when i                  ^^ nor conditions
+            report g
+        stop
+        report head(i)
+    stop
+    report g@i                  ^^ i does not exist after its loop
+stop

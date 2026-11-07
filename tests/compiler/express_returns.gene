@@ -1,0 +1,39 @@
+^^ Return statements: express inside grow until, early express, return
+^^ types inferred from variables, genes without express, express in nucleus.
+gene first_purine(dna s)            ^^ express inside grow until
+    grow until s = ""
+        when head(s) = 'A' either head(s) = 'G'
+            express head(s)
+        stop
+        tail(s) -> s
+    stop
+    express ""
+stop
+
+gene as_rna(dna s)                  ^^ rna return type, inferred from r
+    transcribe(s) -> rna r
+    when r = ""
+        express ""                  ^^ "" takes the gene's rna type
+    stop
+    express r
+stop
+
+gene nothing(dna s)                 ^^ no express: returns ""
+    fuse s s -> s
+stop
+
+gene early(dna s)
+    express s
+    report "AAAA"                   ^^ never runs
+stop
+
+gene nucleus()
+    report first_purine("TCCGA")
+    report first_purine("TTC")
+    report as_rna("GAT")
+    report fuse as_rna("") "UU"
+    report nothing("ACGT")
+    report early("CAT")
+    express "ACGT"                  ^^ nucleus may express too; the program ends here
+    report "TTTT"
+stop

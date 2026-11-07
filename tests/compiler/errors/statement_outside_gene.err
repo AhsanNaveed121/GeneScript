@@ -1,0 +1,3 @@
+tests/compiler/errors/statement_outside_gene.gene:2: statement outside any gene.
+              every statement must be inside a gene; the program starts at gene nucleus().
+Compilation stopped: 1 error.

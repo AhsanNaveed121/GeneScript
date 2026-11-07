@@ -1,0 +1,36 @@
+^^ Mutual recursion and forward references: nucleus comes first and calls
+^^ genes that are defined later in the file.
+gene nucleus()
+    report evens("ACGTAC")
+    report odds("ACGTAC")
+    report even_length("ACGT")      ^^ "A" for even length
+    report even_length("ACG")       ^^ "" for odd length
+stop
+
+gene evens(dna s)                   ^^ bases at positions 0, 2, 4, ...
+    when s = ""
+        express s
+    stop
+    express fuse head(s) odds(tail(s))
+stop
+
+gene odds(dna s)                    ^^ bases at positions 1, 3, 5, ...
+    when s = ""
+        express s
+    stop
+    express evens(tail(s))
+stop
+
+gene even_length(dna s)
+    when s = ""
+        express "A"
+    stop
+    express odd_length(tail(s))
+stop
+
+gene odd_length(dna s)
+    when s = ""
+        express ""
+    stop
+    express even_length(tail(s))
+stop

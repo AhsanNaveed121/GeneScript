@@ -1,0 +1,3 @@
+tests/compiler/errors/invalid_base_in_call.gene:7: invalid base 'X' in DNA literal.
+              DNA allows only A, C, G, T.
+Compilation stopped: 1 error.

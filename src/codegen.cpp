@@ -50,6 +50,7 @@ void IRContext::beginFunction(const std::string& ret_type, const std::string& na
                               const std::vector<std::string>& params) {
     in_function_ = true;
     terminated_ = false;
+    current_block_ = "entry";
     temp_counter_ = 0;
     label_counter_ = 0;
     fn_allocas_.str("");
@@ -87,6 +88,7 @@ void IRContext::emitTerminator(const std::string& instr) {
 void IRContext::startBlock(const std::string& label) {
     if (!terminated_) fn_body_ << "  br label %" << label << "\n";
     fn_body_ << label << ":\n";
+    current_block_ = label;
     terminated_ = false;
 }
 
@@ -129,6 +131,15 @@ std::vector<IRVariable> IRContext::liveVars() const {
     std::vector<IRVariable> out;
     for (auto s = scopes_.rbegin(); s != scopes_.rend(); ++s) {
         out.insert(out.end(), s->rbegin(), s->rend());
+    }
+    return out;
+}
+
+std::vector<IRVariable> IRContext::varsFrom(size_t depth) const {
+    std::vector<IRVariable> out;
+    for (size_t s = scopes_.size(); s > depth; --s) {
+        const auto& scope = scopes_[s - 1];
+        out.insert(out.end(), scope.rbegin(), scope.rend());
     }
     return out;
 }
@@ -302,6 +313,7 @@ void CodeGenerator::genGene(GeneDeclAST& gene) {
     }
     ctx_.beginFunction(llvmType(current_ret_), geneSymbol(gene.name), params);
     ctx_.pushScope();
+    loops_.clear();
 
     // ABI: parameters arrive BORROWED; each gets a local slot holding its
     // own (+1) reference, released when the gene returns.
@@ -355,7 +367,314 @@ void CodeGenerator::genStmt(StmtAST* stmt) {
     if (auto* decl = dynamic_cast<DeclStmtAST*>(stmt)) return genDecl(decl);
     if (auto* assign = dynamic_cast<AssignStmtAST*>(stmt)) return genAssign(assign);
     if (auto* rep = dynamic_cast<ReportStmtAST*>(stmt)) return genReport(rep);
+    if (auto* exp = dynamic_cast<ExpressStmtAST*>(stmt)) return genExpress(exp);
+    if (auto* w = dynamic_cast<WhenStmtAST*>(stmt)) return genWhen(w);
+    if (auto* ca = dynamic_cast<CycleAcrossStmtAST*>(stmt)) return genCycleAcross(ca);
+    if (auto* cft = dynamic_cast<CycleFromToStmtAST*>(stmt)) return genCycleFromTo(cft);
+    if (auto* gr = dynamic_cast<GrowUntilStmtAST*>(stmt)) return genGrowUntil(gr);
+    if (dynamic_cast<HaltStmtAST*>(stmt)) return genLoopExit(stmt, true);
+    if (dynamic_cast<SkipStmtAST*>(stmt)) return genLoopExit(stmt, false);
     unsupported(stmt, stmtName(stmt));
+}
+
+// ---- Genes (Part 4) -----------------------------------------------------------
+
+// express e: own the result FIRST (it may be a borrowed read of a variable
+// that is about to be released), then release every live variable of the
+// gene -- parameters, block locals and each enclosing `cycle across` loop's
+// held sequence -- and return.  The caller receives an owned (+1) result.
+void CodeGenerator::genExpress(ExpressStmtAST* exp) {
+    IRValue v = genExpr(exp->expr.get());
+    if (!isSequence(v.type)) {
+        if (v.type != TYPE_UNKNOWN) unsupported(exp, "expressing a " + dataTypeToString(v.type) + " value");
+        return;
+    }
+    std::string owned = makeOwned(v);
+    releaseScopeVars(ctx_.liveVars());
+    ctx_.emitTerminator("ret ptr " + owned);
+}
+
+// name(a1, a2, ...): arguments are evaluated left to right (as in Phase 1)
+// and passed BORROWED; the callee retains what it keeps.  Owned argument
+// temporaries are released after the call returns.  The result is owned.
+// Genes may be defined anywhere in the file: LLVM resolves calls to
+// functions defined later in the module, so recursion, mutual recursion and
+// forward references need no declarations.
+IRValue CodeGenerator::genCall(CallExprAST* call) {
+    auto sig = sem_.gene_signatures.find(call->callee);
+    if (sig == sem_.gene_signatures.end()) {  // semantics resolved every call
+        unsupported(call, "call to unknown gene '" + call->callee + "'");
+        return {"poison", TYPE_UNKNOWN, false};
+    }
+    std::vector<IRValue> args;
+    for (auto& a : call->args) {
+        IRValue v = genExpr(a.get());
+        if (!isSequence(v.type)) return {"poison", TYPE_UNKNOWN, false};
+        args.push_back(v);
+    }
+    std::string arg_text;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (i) arg_text += ", ";
+        arg_text += "ptr " + args[i].ref;
+    }
+    DataType ret = isSequence(sig->second.return_type) ? sig->second.return_type : TYPE_DNA;
+    std::string t = ctx_.newTemp();
+    ctx_.emit(t + " = call ptr @" + geneSymbol(call->callee) + "(" + arg_text + ")");
+    for (const auto& a : args) releaseIfOwned(a);
+    return {t, ret, true};
+}
+
+// ---- Control flow (Part 3) --------------------------------------------------
+//
+// Every block (when branch, otherwise, loop body) is its own scope: sequence
+// variables declared in it are released when the block falls through, and by
+// halt/skip when they jump out of it.  Labels come from IRContext::newLabel,
+// so they are unique within the function (when.then.3, across.cond.7, ...).
+
+void CodeGenerator::genBlock(const std::vector<std::unique_ptr<StmtAST>>& body) {
+    ctx_.pushScope();
+    for (auto& s : body) genStmt(s.get());
+    std::vector<IRVariable> vars = ctx_.popScope();
+    if (!ctx_.blockTerminated()) releaseScopeVars(vars);
+}
+
+std::string CodeGenerator::genCondition(ExprAST* cond) {
+    IRValue c = genExpr(cond);
+    if (c.type == TYPE_BOOL) return c.ref;
+    if (c.type != TYPE_UNKNOWN) {  // semantics rejects this; never emit bad IR
+        unsupported(cond, "a " + dataTypeToString(c.type) + " value used as a condition");
+    }
+    return "";
+}
+
+// when c1 ... otherwise when c2 ... otherwise ... stop
+//
+//     br i1 %c1, label %when.then.A, label %when.else.B
+//   when.then.A:  <body 1>                 br label %when.end.E
+//   when.else.B:  %c2 = ...   br i1 %c2, label %when.then.C, label %when.else.D
+//   when.then.C:  <body 2>                 br label %when.end.E
+//   when.else.D:  <otherwise body>         br label %when.end.E
+//   when.end.E:
+//
+// Conditions are evaluated in order and only until one is true, as in Phase 1.
+void CodeGenerator::genWhen(WhenStmtAST* w) {
+    std::string end = ctx_.newLabel("when.end");
+    const size_t n = w->branches.size();
+    for (size_t k = 0; k < n; ++k) {
+        std::string c = genCondition(w->branches[k].condition.get());
+        if (c.empty()) return;
+        bool last = (k + 1 == n);
+        std::string then = ctx_.newLabel("when.then");
+        std::string next = (last && w->otherwise_body.empty()) ? end : ctx_.newLabel("when.else");
+        ctx_.emitTerminator("br i1 " + c + ", label %" + then + ", label %" + next);
+
+        ctx_.startBlock(then);
+        genBlock(w->branches[k].body);
+        if (!ctx_.blockTerminated()) ctx_.emitTerminator("br label %" + end);
+        if (next != end) ctx_.startBlock(next);
+    }
+    if (!w->otherwise_body.empty()) {
+        genBlock(w->otherwise_body);
+        if (!ctx_.blockTerminated()) ctx_.emitTerminator("br label %" + end);
+    }
+    ctx_.startBlock(end);
+}
+
+void CodeGenerator::genLoopBody(const std::vector<std::unique_ptr<StmtAST>>& body,
+                                const std::string& brk, const std::string& cont) {
+    loops_.push_back({brk, cont, ctx_.scopeDepth()});
+    genBlock(body);
+    loops_.pop_back();
+    if (!ctx_.blockTerminated()) ctx_.emitTerminator("br label %" + cont);
+}
+
+// The counter lives in an i64 stack slot, declared in a loop scope that
+// encloses the body.  Semantics makes it read-only, so the slot doubles as the
+// loop index.  mem2reg turns it into a phi at -O1 and above.
+static std::string emitCounterLoad(IRContext& ctx, const std::string& slot) {
+    std::string t = ctx.newTemp();
+    ctx.emit(t + " = load i64, ptr " + slot + ", align 8");
+    return t;
+}
+
+static void emitCounterStep(IRContext& ctx, const std::string& slot) {
+    std::string i = emitCounterLoad(ctx, slot);
+    std::string next = ctx.newTemp();
+    ctx.emit(next + " = add nsw i64 " + i + ", 1");
+    ctx.emit("store i64 " + next + ", ptr " + slot + ", align 8");
+}
+
+// cycle i across s ... stop
+//
+// As in Phase 1, s is evaluated once before the loop and the loop visits
+// positions 0 .. len(s)-1, even if the body reassigns the variable s.  The
+// loop keeps its own reference to that first value (hidden variable), so the
+// body cannot free it; the reference is released after the loop.
+//
+//     %s = <s>, retained;  %len = call i64 @gs_seq_len(ptr %s);  i = 0
+//     br label %across.cond.A
+//   across.cond.A:  %i = load i;  %c = icmp slt i64 %i, %len
+//                   br i1 %c, label %across.body.B, label %across.end.D
+//   across.body.B:  <body>                         br label %across.step.C
+//   across.step.C:  i = i + 1                      br label %across.cond.A
+//   across.end.D:   release %s
+//
+// halt -> across.end, skip -> across.step.
+void CodeGenerator::genCycleAcross(CycleAcrossStmtAST* loop) {
+    IRValue s = genExpr(loop->seq_expr.get());
+    if (!isSequence(s.type)) return;
+
+    ctx_.pushScope();  // loop scope: the held sequence and the counter
+    std::string held = makeOwned(s);
+    std::string seq_slot = ctx_.emitAlloca("ptr", "across", "null");
+    ctx_.emit("store ptr " + held + ", ptr " + seq_slot + ", align 8");
+    ctx_.declareVar({" across", seq_slot, s.type});  // space: not a GeneScript name
+
+    std::string len = ctx_.newTemp();
+    ctx_.declareExternal(RT_LEN);
+    ctx_.emit(len + " = call i64 @gs_seq_len(ptr " + held + ")");
+    std::string ctr = ctx_.emitAlloca("i64", loop->counter_var);
+    ctx_.emit("store i64 0, ptr " + ctr + ", align 8");
+    ctx_.declareVar({loop->counter_var, ctr, TYPE_INT});
+
+    std::string cond = ctx_.newLabel("across.cond");
+    std::string body = ctx_.newLabel("across.body");
+    std::string step = ctx_.newLabel("across.step");
+    std::string end = ctx_.newLabel("across.end");
+
+    ctx_.startBlock(cond);
+    std::string i = emitCounterLoad(ctx_, ctr);
+    std::string more = ctx_.newTemp();
+    ctx_.emit(more + " = icmp slt i64 " + i + ", " + len);
+    ctx_.emitTerminator("br i1 " + more + ", label %" + body + ", label %" + end);
+
+    ctx_.startBlock(body);
+    genLoopBody(loop->body, end, step);
+
+    ctx_.startBlock(step);
+    emitCounterStep(ctx_, ctr);
+    ctx_.emitTerminator("br label %" + cond);
+
+    ctx_.startBlock(end);
+    releaseScopeVars(ctx_.popScope());
+}
+
+// cycle i from a to b ... stop
+//
+// a and b are evaluated once, before the loop (Phase 1).  The loop runs
+// i = a, a+1, ..., b-1; it runs zero times when a >= b.
+//
+//     %a = <a>;  %b = <b>;  i = %a
+//     br label %count.cond.A
+//   count.cond.A:  %i = load i;  %c = icmp slt i64 %i, %b
+//                  br i1 %c, label %count.body.B, label %count.end.D
+//   count.body.B:  <body>                          br label %count.step.C
+//   count.step.C:  i = i + 1                       br label %count.cond.A
+//   count.end.D:
+void CodeGenerator::genCycleFromTo(CycleFromToStmtAST* loop) {
+    IRValue from = genExpr(loop->from_expr.get());
+    IRValue to = genExpr(loop->to_expr.get());
+    if (from.type != TYPE_INT || to.type != TYPE_INT) return;  // error recorded
+
+    ctx_.pushScope();  // loop scope: the counter
+    std::string ctr = ctx_.emitAlloca("i64", loop->counter_var);
+    ctx_.emit("store i64 " + from.ref + ", ptr " + ctr + ", align 8");
+    ctx_.declareVar({loop->counter_var, ctr, TYPE_INT});
+
+    std::string cond = ctx_.newLabel("count.cond");
+    std::string body = ctx_.newLabel("count.body");
+    std::string step = ctx_.newLabel("count.step");
+    std::string end = ctx_.newLabel("count.end");
+
+    ctx_.startBlock(cond);
+    std::string i = emitCounterLoad(ctx_, ctr);
+    std::string more = ctx_.newTemp();
+    ctx_.emit(more + " = icmp slt i64 " + i + ", " + to.ref);
+    ctx_.emitTerminator("br i1 " + more + ", label %" + body + ", label %" + end);
+
+    ctx_.startBlock(body);
+    genLoopBody(loop->body, end, step);
+
+    ctx_.startBlock(step);
+    emitCounterStep(ctx_, ctr);
+    ctx_.emitTerminator("br label %" + cond);
+
+    ctx_.startBlock(end);
+    releaseScopeVars(ctx_.popScope());
+}
+
+// grow until c ... stop
+//
+// The condition is tested before every pass; the body runs while it is
+// still false and the loop ends as soon as it becomes true (Phase 1).
+//
+//     br label %grow.cond.A
+//   grow.cond.A:  %c = <c>   br i1 %c, label %grow.end.C, label %grow.body.B
+//   grow.body.B:  <body>                           br label %grow.cond.A
+//   grow.end.C:
+//
+// halt -> grow.end, skip -> grow.cond.
+void CodeGenerator::genGrowUntil(GrowUntilStmtAST* loop) {
+    std::string cond = ctx_.newLabel("grow.cond");
+    std::string body = ctx_.newLabel("grow.body");
+    std::string end = ctx_.newLabel("grow.end");
+
+    ctx_.startBlock(cond);
+    std::string c = genCondition(loop->cond_expr.get());
+    if (c.empty()) return;
+    ctx_.emitTerminator("br i1 " + c + ", label %" + end + ", label %" + body);
+
+    ctx_.startBlock(body);
+    genLoopBody(loop->body, end, cond);
+
+    ctx_.startBlock(end);
+}
+
+// halt / skip: release every sequence variable declared inside the innermost
+// loop's body (including nested when blocks) so far, then jump.
+void CodeGenerator::genLoopExit(StmtAST* stmt, bool is_halt) {
+    if (loops_.empty()) {  // semantics rejects this; never emit a stray br
+        unsupported(stmt, std::string(is_halt ? "'halt'" : "'skip'") + " outside a loop");
+        return;
+    }
+    const LoopTargets& loop = loops_.back();
+    releaseScopeVars(ctx_.varsFrom(loop.body_scope_depth));
+    ctx_.emitTerminator("br label %" + (is_halt ? loop.break_label : loop.continue_label));
+}
+
+// both / either with short-circuit evaluation (the right side runs only when
+// it can change the result, as in Phase 1):
+//
+//     %l = <lhs>
+//     br i1 %l, label %both.rhs.A, label %both.end.B     ; either: swapped
+//   both.rhs.A:  %r = <rhs>                         br label %both.end.B
+//   both.end.B:  %v = phi i1 [ false, %<lhs block> ], [ %r, %<rhs block> ]
+IRValue CodeGenerator::genLogical(BinaryExprAST* bin) {
+    const bool is_both = (bin->op == OP_BOTH);
+    const std::string word = is_both ? "both" : "either";
+
+    std::string l = genCondition(bin->lhs.get());
+    if (l.empty()) return {"poison", TYPE_UNKNOWN, false};
+    std::string lhs_block = ctx_.currentBlock();
+    std::string rhs = ctx_.newLabel(word + ".rhs");
+    std::string end = ctx_.newLabel(word + ".end");
+    if (is_both) {
+        ctx_.emitTerminator("br i1 " + l + ", label %" + rhs + ", label %" + end);
+    } else {
+        ctx_.emitTerminator("br i1 " + l + ", label %" + end + ", label %" + rhs);
+    }
+
+    ctx_.startBlock(rhs);
+    std::string r = genCondition(bin->rhs.get());
+    if (r.empty()) return {"poison", TYPE_UNKNOWN, false};
+    std::string rhs_block = ctx_.currentBlock();  // rhs may itself add blocks
+    ctx_.emitTerminator("br label %" + end);
+
+    ctx_.startBlock(end);
+    std::string v = ctx_.newTemp();
+    ctx_.emit(v + " = phi i1 [ " + std::string(is_both ? "false" : "true") + ", %" + lhs_block +
+              " ], [ " + r + ", %" + rhs_block + " ]");
+    return {v, TYPE_BOOL, false};
 }
 
 // "e -> dna x": the new slot owns +1 reference to the value.
@@ -372,7 +691,7 @@ void CodeGenerator::genDecl(DeclStmtAST* decl) {
 // `tail(x) -> x` and `x -> x` never touch a freed sequence.
 void CodeGenerator::genAssign(AssignStmtAST* assign) {
     const IRVariable* var = ctx_.lookupVar(assign->var_name);
-    if (!var) {  // e.g. a loop counter (Part 3); semantics checked the rest
+    if (!var || !isSequence(var->type)) {  // semantics forbids assigning counters
         unsupported(assign, "assignment to '" + assign->var_name + "'");
         return;
     }
@@ -421,6 +740,7 @@ IRValue CodeGenerator::genExpr(ExprAST* expr) {
         return {blit->value ? "true" : "false", TYPE_BOOL, false};
     }
     if (auto* var = dynamic_cast<VarExprAST*>(expr)) return genVar(var);
+    if (auto* call = dynamic_cast<CallExprAST*>(expr)) return genCall(call);
     if (auto* bc = dynamic_cast<BuiltinCallExprAST*>(expr)) {
         switch (bc->op) {
             case BUILTIN_HEAD: return genSeqUnary(bc->arg.get(), RT_HEAD, TYPE_UNKNOWN);
@@ -441,7 +761,13 @@ IRValue CodeGenerator::genExpr(ExprAST* expr) {
             releaseIfOwned(s);
             return {t, TYPE_INT, false};
         }
-        // `lacks` belongs with conditions (Part 3).
+        if (un->op == OP_LACKS) {
+            std::string c = genCondition(un->operand.get());
+            if (c.empty()) return {"poison", TYPE_UNKNOWN, false};
+            std::string t = ctx_.newTemp();
+            ctx_.emit(t + " = xor i1 " + c + ", true");
+            return {t, TYPE_BOOL, false};
+        }
     }
     if (auto* idx = dynamic_cast<IndexExprAST*>(expr)) {
         IRValue s = genExpr(idx->seq.get());
@@ -455,7 +781,7 @@ IRValue CodeGenerator::genExpr(ExprAST* expr) {
     }
     if (auto* bin = dynamic_cast<BinaryExprAST*>(expr)) {
         if (bin->op != OP_BOTH && bin->op != OP_EITHER) return genBinary(bin);
-        // both/either need short-circuit branches: Part 3 with `when`.
+        return genLogical(bin);
     }
     unsupported(expr, exprName(expr));
     return {"poison", TYPE_UNKNOWN, false};
@@ -463,11 +789,15 @@ IRValue CodeGenerator::genExpr(ExprAST* expr) {
 
 IRValue CodeGenerator::genVar(VarExprAST* var) {
     const IRVariable* v = ctx_.lookupVar(var->name);
-    if (!v) {  // loop counters are not lowered yet (Part 3)
-        unsupported(var, "reading '" + var->name + "' (loop counter)");
+    if (!v) {  // semantics resolved every name; never emit a dangling load
+        unsupported(var, "reading '" + var->name + "'");
         return {"poison", TYPE_UNKNOWN, false};
     }
     std::string t = ctx_.newTemp();
+    if (v->type == TYPE_INT) {  // loop counter: a plain i64, no ownership
+        ctx_.emit(t + " = load i64, ptr " + v->slot + ", align 8");
+        return {t, TYPE_INT, false};
+    }
     ctx_.emit(t + " = load ptr, ptr " + v->slot + ", align 8");
     // BORROWED: valid until the variable is next assigned.  Expressions
     // cannot assign variables, so it outlives the expression using it.

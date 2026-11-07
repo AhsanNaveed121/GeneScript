@@ -1,0 +1,4 @@
+^^ Calling a gene that does not exist.
+gene nucleus()
+    report mutate("ACGT")
+stop

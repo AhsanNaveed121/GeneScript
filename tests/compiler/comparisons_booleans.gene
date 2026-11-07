@@ -1,0 +1,37 @@
+^^ Comparisons (=, <, >, <=, >=) and boolean expressions.
+gene smaller(dna a, dna b)      ^^ ordering on single-base parameters
+    when a <= b
+        express a
+    stop
+    express b
+stop
+
+gene nucleus()
+    "ACGT" -> dna g
+    "ACGT" -> dna h
+    when g = h both lacks (g = "")
+        report "AA"
+    stop
+    when head(g) < g@1 either g@1 < head(g)
+        report "CC"
+    stop
+    when g@3 >= 'T' both 'A' <= g@0
+        report "GG"
+    stop
+    report smaller(g@2, g@1)
+    report smaller('T', 'T')
+
+    "AUG" -> rna r
+    when r@1 > 'G'
+        report r@1
+    stop
+
+    when unbound both g < 'C'   ^^ short-circuit: g < 'C' would be a runtime error
+        report "TT"
+    otherwise
+        report "TTT"
+    stop
+    when lacks bound either bound both lacks unbound   ^^ = unbound either (bound both bound)
+        report "ACGT"
+    stop
+stop

@@ -1,0 +1,16 @@
+^^ Conditions must be bound/unbound or comparisons, not sequences.
+gene nucleus()
+    "ACGT" -> dna g
+    when g
+        report g
+    stop
+    grow until tail(g)
+        report g
+    stop
+    when lacks g
+        report g
+    stop
+    when bound both g
+        report g
+    stop
+stop

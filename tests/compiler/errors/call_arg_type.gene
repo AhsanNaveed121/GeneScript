@@ -1,0 +1,10 @@
+^^ Arguments must match the parameter types (DNA vs RNA, no integers).
+gene only_dna(dna d)
+    express d
+stop
+
+gene nucleus()
+    "AUG" -> rna r
+    report only_dna(r)
+    report only_dna("AUG")
+stop

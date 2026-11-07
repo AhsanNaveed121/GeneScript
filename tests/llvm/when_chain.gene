@@ -1,0 +1,32 @@
+^^ Else-if chains: when ... otherwise when ... otherwise ... stop.
+gene nucleus()
+    "ACGT" -> dna g
+    cycle i across g            ^^ each base takes a different branch
+        when g@i = 'A'
+            report "A"
+        otherwise when g@i = 'C'
+            report "CC"
+        otherwise when g@i = 'G'
+            report "GGG"
+        otherwise
+            report "TTTT"
+        stop
+    stop
+
+    "T" -> dna b
+    when b = 'A'                ^^ no branch matches and there is no otherwise
+        report "A"
+    otherwise when b = 'C'
+        report "C"
+    stop
+
+    ^^ conditions run in order and stop at the first true one: the third
+    ^^ condition would be a runtime error (g is not a single base)
+    when b = 'A'
+        report "AA"
+    otherwise when b = 'T'
+        report "TT"
+    otherwise when g < 'C'
+        report "CC"
+    stop
+stop

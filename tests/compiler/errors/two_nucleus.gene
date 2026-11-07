@@ -1,0 +1,8 @@
+^^ A program has exactly one entry point.
+gene nucleus()
+    report "ACGT"
+stop
+
+gene nucleus()
+    report "TTTT"
+stop

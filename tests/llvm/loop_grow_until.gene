@@ -1,0 +1,25 @@
+^^ grow until c: repeats while c is false, stops as soon as c is true.
+gene nucleus()
+    "ACGT" -> dna g
+    grow until g = ""
+        report g
+        tail(g) -> g
+    stop
+    report g
+
+    grow until bound            ^^ already true: the body never runs
+        report "TTTT"
+    stop
+
+    "" -> dna acc
+    grow until acc = "GGG"
+        fuse acc 'G' -> acc
+    stop
+    report acc
+
+    "AAC" -> dna s              ^^ combined condition
+    grow until s = "" either head(s) = 'C'
+        tail(s) -> s
+    stop
+    report s
+stop

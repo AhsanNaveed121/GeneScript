@@ -1,0 +1,31 @@
+^^ Direct recursion on DNA and RNA.
+gene reverse(dna s)
+    when s = ""
+        express s
+    stop
+    express fuse reverse(tail(s)) head(s)
+stop
+
+gene only_g(dna s)                  ^^ keeps the G bases, recursively
+    when s = ""
+        express ""
+    stop
+    when head(s) = 'G'
+        express fuse 'G' only_g(tail(s))
+    stop
+    express only_g(tail(s))
+stop
+
+gene rna_reverse(rna s)
+    when s = ""
+        express s
+    stop
+    express fuse rna_reverse(tail(s)) head(s)
+stop
+
+gene nucleus()
+    report reverse("GATTACA")
+    report only_g("GGATGCG")
+    report rna_reverse(transcribe("ATGC"))
+    report reverse("")
+stop

@@ -1,0 +1,6 @@
+^^ A block without its closing stop.
+gene nucleus()
+    "ACGT" -> dna g
+    when g = "ACGT"
+        report g
+stop

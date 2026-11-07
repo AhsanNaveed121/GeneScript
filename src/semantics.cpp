@@ -123,6 +123,9 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
                 // re-check lhs with context
                 t1 = checkExpr(bin->lhs.get(), scope, t2);
             }
+            if (!requireSequence(t1, bin->loc, "fuse") || !requireSequence(t2, bin->loc, "fuse")) {
+                return TYPE_UNKNOWN;
+            }
             if (t1 != TYPE_UNKNOWN && t2 != TYPE_UNKNOWN && t1 != t2) {
                 reportError(bin->loc, "cannot fuse " + dataTypeToString(t1) + " with " + dataTypeToString(t2) + ".",
                             "fuse requires both sequences to have the same biological type.");
@@ -154,6 +157,8 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
             if (t1 != TYPE_UNKNOWN && t2 != TYPE_UNKNOWN && t1 != t2) {
                 reportError(bin->loc, "cannot compare " + dataTypeToString(t1) + " with " + dataTypeToString(t2) + " using '='.",
                             "comparison '=' requires sequences of the same type.");
+            } else {
+                requireSequence(t1, bin->loc, "comparison '='");
             }
             bin->deduced_type = TYPE_BOOL;
             return TYPE_BOOL;
@@ -174,8 +179,9 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
             return TYPE_BOOL;
         }
         if (bin->op == OP_BOTH || bin->op == OP_EITHER) {
-            checkExpr(bin->lhs.get(), scope, TYPE_BOOL);
-            checkExpr(bin->rhs.get(), scope, TYPE_BOOL);
+            const char* word = bin->op == OP_BOTH ? "'both'" : "'either'";
+            checkCondition(bin->lhs.get(), scope, word);
+            checkCondition(bin->rhs.get(), scope, word);
             bin->deduced_type = TYPE_BOOL;
             return TYPE_BOOL;
         }
@@ -191,7 +197,7 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
             return TYPE_DNA;
         }
         if (un->op == OP_LACKS) {
-            checkExpr(un->operand.get(), scope, TYPE_BOOL);
+            checkCondition(un->operand.get(), scope, "'lacks'");
             un->deduced_type = TYPE_BOOL;
             return TYPE_BOOL;
         }
@@ -207,6 +213,9 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
     if (auto* bc = dynamic_cast<BuiltinCallExprAST*>(expr)) {
         if (bc->op == BUILTIN_HEAD || bc->op == BUILTIN_TAIL) {
             DataType t = checkExpr(bc->arg.get(), scope, expected);
+            if (!requireSequence(t, bc->loc, bc->op == BUILTIN_HEAD ? "head()" : "tail()")) {
+                return TYPE_UNKNOWN;
+            }
             bc->deduced_type = t;
             return t;
         }
@@ -222,6 +231,7 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
     }
     if (auto* idx = dynamic_cast<IndexExprAST*>(expr)) {
         DataType tseq = checkExpr(idx->seq.get(), scope, expected);
+        if (!requireSequence(tseq, idx->loc, "indexing (@)")) tseq = TYPE_UNKNOWN;
         bool valid_index = false;
         if (dynamic_cast<IntLiteralExprAST*>(idx->index.get())) {
             valid_index = true;
@@ -240,14 +250,16 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
     if (auto* call = dynamic_cast<CallExprAST*>(expr)) {
         auto it = gene_signatures.find(call->callee);
         if (it == gene_signatures.end()) {
-            reportError(call->loc, "call to undefined gene '" + call->callee + "'.");
+            reportError(call->loc, "call to undefined gene '" + call->callee + "'.",
+                        "define it with 'gene " + call->callee + "(...) ... stop' anywhere in the file.");
             return TYPE_UNKNOWN;
         }
         const auto& sig = it->second;
         if (sig.param_types.size() != call->args.size()) {
             reportError(call->loc, "gene '" + call->callee + "' expects " +
                         std::to_string(sig.param_types.size()) + " arguments, but got " +
-                        std::to_string(call->args.size()) + ".");
+                        std::to_string(call->args.size()) + ".",
+                        "pass one DNA or RNA sequence for each parameter of the gene.");
         } else {
             for (size_t i = 0; i < call->args.size(); ++i) {
                 DataType param_t = sig.param_types[i];
@@ -336,7 +348,7 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
 
     if (auto* w = dynamic_cast<WhenStmtAST*>(stmt)) {
         for (auto& b : w->branches) {
-            checkExpr(b.condition.get(), scope, TYPE_BOOL);
+            checkCondition(b.condition.get(), scope, "'when'");
             auto branch_scope = std::make_shared<Scope>(scope);
             for (auto& s : b.body) {
                 checkStmt(s.get(), branch_scope, enclosing_gene_ret, loop_depth);
@@ -352,7 +364,8 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
     }
 
     if (auto* cyc = dynamic_cast<CycleAcrossStmtAST*>(stmt)) {
-        checkExpr(cyc->seq_expr.get(), scope, TYPE_UNKNOWN);
+        DataType across_t = checkIntPosition(cyc->seq_expr.get(), scope);
+        requireSequence(across_t, cyc->loc, "'cycle ... across'");
         auto loop_scope = std::make_shared<Scope>(scope);
         Symbol counter_sym;
         counter_sym.name = cyc->counter_var;
@@ -383,7 +396,7 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
     }
 
     if (auto* gr = dynamic_cast<GrowUntilStmtAST*>(stmt)) {
-        checkExpr(gr->cond_expr.get(), scope, TYPE_BOOL);
+        checkCondition(gr->cond_expr.get(), scope, "'grow until'");
         auto loop_scope = std::make_shared<Scope>(scope);
         for (auto& s : gr->body) {
             checkStmt(s.get(), loop_scope, enclosing_gene_ret, loop_depth + 1);
@@ -393,16 +406,42 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
 
     if (dynamic_cast<HaltStmtAST*>(stmt)) {
         if (loop_depth == 0) {
-            reportError(stmt->loc, "halt (break) statement outside of any loop.");
+            reportError(stmt->loc, "halt (break) statement outside of any loop.",
+                        "halt leaves the innermost cycle or grow until loop; a when block is not a loop.");
         }
         return;
     }
 
     if (dynamic_cast<SkipStmtAST*>(stmt)) {
         if (loop_depth == 0) {
-            reportError(stmt->loc, "skip (continue) statement outside of any loop.");
+            reportError(stmt->loc, "skip (continue) statement outside of any loop.",
+                        "skip moves to the next pass of the innermost cycle or grow until loop.");
         }
         return;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Conditions and sequence operands. Integers (loop counters) and bound/unbound
+// are not sequences, and sequences are not conditions.
+// ---------------------------------------------------------------------------
+
+// Reports an error when `t` is an integer or boolean where a DNA/RNA sequence
+// is required. Returns false in that case (unknown types pass silently).
+bool SemanticAnalyzer::requireSequence(DataType t, SourceLoc loc, const std::string& what) {
+    if (t != TYPE_INT && t != TYPE_BOOL) return true;
+    reportError(loc, what + " needs a DNA or RNA sequence, not " + dataTypeToString(t) + ".",
+                "loop counters and bound/unbound values are not sequences.");
+    return false;
+}
+
+// Conditions of when / grow until / both / either / lacks must be boolean:
+// bound, unbound, a comparison, or a combination of those.
+void SemanticAnalyzer::checkCondition(ExprAST* expr, std::shared_ptr<Scope> scope, const std::string& where) {
+    DataType t = checkIntPosition(expr, scope, TYPE_BOOL);
+    if (t != TYPE_BOOL && t != TYPE_UNKNOWN) {
+        reportError(expr->loc, where + " needs a condition, not " + dataTypeToString(t) + ".",
+                    "use bound, unbound or a comparison such as 's = \"\"' or 's@i < 'G''.");
     }
 }
 
@@ -622,8 +661,19 @@ bool SemanticAnalyzer::analyze(ProgramAST& prog) {
     auto global_scope = std::make_shared<Scope>();
 
     // Check top-level statements if any (like in error.gene)
+    size_t errors_before_top_level = errors.size();
     for (auto& stmt : prog.top_level_stmts) {
         checkStmt(stmt.get(), global_scope, TYPE_UNKNOWN, 0);
+    }
+    bool top_level_had_errors = errors.size() > errors_before_top_level;
+    // Execution starts at nucleus(), so statements outside every gene would
+    // never belong to the program. (A file of only top-level statements, like
+    // the proposal's error.gene snippet, gets the missing nucleus() error below.)
+    if (!prog.genes.empty()) {
+        for (auto& stmt : prog.top_level_stmts) {
+            reportError(stmt->loc, "statement outside any gene.",
+                        "every statement must be inside a gene; the program starts at gene nucleus().");
+        }
     }
 
     // Pass 3: check every gene body.
@@ -656,9 +706,10 @@ bool SemanticAnalyzer::analyze(ProgramAST& prog) {
         }
     }
 
-    // Every program with genes needs exactly one nucleus(). A file with only
-    // top-level statements (like the proposal's error.gene snippet) is exempt.
-    if (!has_nucleus && (!prog.genes.empty() || prog.top_level_stmts.empty())) {
+    // Every program needs exactly one nucleus(). For a file of only top-level
+    // statements that already has errors (the proposal's error.gene snippet),
+    // those errors are reported alone, matching the proposal's sample output.
+    if (!has_nucleus && !(prog.genes.empty() && top_level_had_errors)) {
         reportError({1, 1}, "missing entry point 'gene nucleus()'.",
                     "GeneScript programs must define a gene nucleus() with no parameters.");
     }

@@ -11,11 +11,14 @@
 //   CodeGenerator - GeneScript-specific lowering of AST nodes onto IRContext,
 //                   following the runtime ABI in docs/LLVM_BACKEND.md.
 //
-// Supported so far (Parts 1-2): gene definitions, `gene nucleus()` as the
-// entry point, sequence/base literals, declarations, assignments, variable
-// reads, report, head/tail/transcribe, fuse, ~, s@<literal>, #s (lowering
-// only), = and the ordering operators.  Every other construct produces a
-// clean "not supported yet" diagnostic instead of wrong code.
+// Supports the whole language (Parts 1-4): genes with dna/rna parameters,
+// gene calls (recursion, mutual recursion, forward references), express,
+// `gene nucleus()` as the entry point, sequence/base literals, declarations,
+// assignments, report, head/tail/transcribe, fuse, ~, s@i, #s (as a cycle
+// bound), = and the ordering operators, bound/unbound, both/either
+// (short-circuit), lacks, when / otherwise when / otherwise, cycle across,
+// cycle from-to, grow until, halt and skip.  Anything semantics should have
+// rejected produces a clean "not supported" diagnostic instead of wrong code.
 
 #include "ast.h"
 #include "semantics.h"
@@ -80,6 +83,9 @@ public:
     // (if not, a fall-through `br` is inserted).
     void startBlock(const std::string& label);
     bool blockTerminated() const { return terminated_; }
+    // Label of the block instructions are currently emitted into ("entry"
+    // at function start).  Needed for `phi` incoming edges.
+    const std::string& currentBlock() const { return current_block_; }
 
     // Emits an `alloca` in the function's entry block; returns the pointer.
     // A non-empty `init` is stored into the slot in the entry block too
@@ -99,6 +105,10 @@ public:
     const IRVariable* lookupVar(const std::string& name) const;
     // All live variables, innermost scope first (for early-exit cleanup).
     std::vector<IRVariable> liveVars() const;
+    // Number of open scopes, and the variables of scopes [depth, top),
+    // innermost first (for halt/skip cleanup up to a loop's scope).
+    size_t scopeDepth() const { return scopes_.size(); }
+    std::vector<IRVariable> varsFrom(size_t depth) const;
 
     // Final module text.
     std::string str(const std::string& source_name) const;
@@ -119,6 +129,7 @@ private:
     std::ostringstream fn_allocas_;
     std::ostringstream fn_body_;
     bool terminated_ = false;
+    std::string current_block_ = "entry";
     int temp_counter_ = 0;
     int label_counter_ = 0;
 
@@ -156,6 +167,35 @@ private:
     void genReport(ReportStmtAST* rep);
     IRValue genVar(VarExprAST* var);
     IRValue genBinary(BinaryExprAST* bin);
+
+    // ---- Genes (Part 4) ----
+    void genExpress(ExpressStmtAST* exp);
+    IRValue genCall(CallExprAST* call);
+
+    // ---- Control flow (Part 3) ----
+    // Where `halt` / `skip` jump for the innermost enclosing loop, and the
+    // scope depth of that loop's body (scopes from there up are released).
+    struct LoopTargets {
+        std::string break_label;
+        std::string continue_label;
+        size_t body_scope_depth;
+    };
+    std::vector<LoopTargets> loops_;
+
+    // Lowers a statement list in its own scope, releasing its sequence
+    // variables at the end if the block falls through.
+    void genBlock(const std::vector<std::unique_ptr<StmtAST>>& body);
+    void genWhen(WhenStmtAST* w);
+    void genCycleAcross(CycleAcrossStmtAST* loop);
+    void genCycleFromTo(CycleFromToStmtAST* loop);
+    void genGrowUntil(GrowUntilStmtAST* loop);
+    void genLoopExit(StmtAST* stmt, bool is_halt);
+    // Lowers the body of a loop whose `skip` goes to `cont` and `halt` to `brk`.
+    void genLoopBody(const std::vector<std::unique_ptr<StmtAST>>& body,
+                     const std::string& brk, const std::string& cont);
+    // Lowers a condition to an `i1` operand ("" if an error was recorded).
+    std::string genCondition(ExprAST* cond);
+    IRValue genLogical(BinaryExprAST* bin);  // both / either (short-circuit)
     // Calls a runtime `ptr fn(ptr)` on a sequence operand, releasing the
     // operand if owned; the result is owned and has type `result_type`
     // (TYPE_UNKNOWN = same type as the operand).

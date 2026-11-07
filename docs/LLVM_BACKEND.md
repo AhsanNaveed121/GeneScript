@@ -14,12 +14,14 @@ source.gene ─► lexer/parser ─► AST ─► SemanticAnalyzer ─► CodeGe
                                                     native executable
 ```
 
-**Status (Part 2 of 4):** supported constructs are gene definitions, `gene nucleus()` as
+**Status (Part 3 of 4):** supported constructs are gene definitions, `gene nucleus()` as
 the entry point, sequence/base literals (including `""`), declarations (`e -> dna x`),
 assignments (`e -> x`), variable reads, `report`, `head`, `tail`, `transcribe`, `fuse`,
-`~`, `s@<integer literal>`, `=`, and `<`, `>`, `<=`, `>=`. `#s` is lowered to
-`gs_seq_len`, but semantics accepts it only as a `cycle` bound (Part 3). Anything else
-stops compilation with `<file>:<line>: <construct> is not supported by the LLVM backend yet.`
+`~`, `s@i` (literal or loop counter), `#s` as a `cycle` bound, `=`, `<`, `>`, `<=`, `>=`,
+`bound` / `unbound`, `both` / `either` / `lacks`, `when` / `otherwise when` /
+`otherwise`, `cycle i across s`, `cycle i from a to b`, `grow until`, `halt` and `skip`
+(§8). `express` and gene calls are Part 4; using them stops compilation with
+`<file>:<line>: <construct> is not supported by the LLVM backend yet.`
 
 Semantic errors are reported by the shared front end, with the same text as Phase 1,
 before any IR is written. The backend never writes a `.ll` for an invalid program.
@@ -217,16 +219,49 @@ argument, and return **owned** results. Runtime errors print
 Declare the new function in `gs_runtime.h`, add its IR `declare` string next to `RT_*` in
 `codegen.cpp`, and list it in the table above.
 
-## 7. Remaining work (Parts 3–4)
+## 7. Remaining work (Part 4)
 
 - `express` and user-defined gene calls (the calling convention in §4–5 is already
-  fixed).
-- Control flow: `when` / `otherwise when` / `otherwise`, the three `cycle` / `grow` loops
-  (counters as `i64` values; `s@i` with a counter; `#s` bounds via `gs_seq_len`),
-  `halt`, `skip`, and `both` / `either` / `lacks` with short-circuit evaluation.
-  `both` / `either` / `lacks` were left for Part 3 because short-circuiting needs
-  branches.
+  fixed). `express` inside a loop must release `liveVars()`, which already includes each
+  enclosing `cycle across` loop's held sequence (§8).
 - Top-level statements outside any gene (only used by `error.gene`, which semantics
   rejects anyway).
-- The final `genec` CLI that drives clang (Part 4), plus running every Phase 1 test through
-  the native path.
+- The final `genec` CLI that drives clang, plus running every Phase 1 test through the
+  native path (they are now blocked only by `express`).
+- Known Phase 1 difference: the interpreter keeps one flat set of variables per gene call,
+  so an inner declaration or loop counter that reuses an outer name overwrites the outer
+  one. The backend uses block scope, which matches the proposal ("counters … exist only
+  within their loops"). No test reuses a name; the team should either give the
+  interpreter block scopes or make semantics reject such reuse.
+
+## 8. Control flow (Part 3)
+
+All control flow uses ordinary basic blocks with `br i1` / `br label`. Labels come from
+`IRContext::newLabel` (`when.then.3`, `across.cond.7`, …), so they are unique within the
+function. `IRContext::currentBlock()` gives the block name needed for `phi` edges.
+
+| Construct | Blocks | Notes |
+|---|---|---|
+| `when c … otherwise when … otherwise … stop` | `when.then.N`, `when.else.N`, `when.end.N` | Conditions are evaluated in order, only until one is true |
+| `cycle i across s` | `across.cond`, `across.body`, `across.step`, `across.end` | `s` is evaluated once and retained in a hidden variable for the whole loop; `len(s)` is read once. `i = 0 … len-1` |
+| `cycle i from a to b` | `count.cond`, `count.body`, `count.step`, `count.end` | `a` and `b` are evaluated once; `i = a … b-1` (`icmp slt`), zero passes when `a >= b` |
+| `grow until c` | `grow.cond`, `grow.body`, `grow.end` | `c` is tested before every pass; the loop ends when it becomes true |
+| `both` / `either` | `both.rhs`, `both.end` (`either.*`) | Short-circuit: the right side runs only when needed; the result is a `phi i1` |
+| `lacks c` | none | `xor i1 %c, true` |
+| `halt` / `skip` | none | `br` to the innermost loop's end / step (`grow.cond` for `grow until`) |
+
+**Counters** are `i64` values in an `alloca`'d slot in a *loop scope* around the body.
+Semantics makes them read-only, so the slot is also the loop index; clang's mem2reg turns
+it into a `phi` at `-O1` and above.
+
+**Scopes and cleanup.** Every block (each branch, `otherwise`, each loop body) is its own
+scope. When a block falls through, its sequence variables are released. `halt` and `skip`
+release the variables of every scope from the loop body inwards (`IRContext::varsFrom`)
+before the `br`. The loop scope itself (counter and held `across` sequence) is released
+at the loop's end block, which every `halt` reaches.
+
+**Front-end rules added for Part 3** (shared with the interpreter, which rejects the same
+programs): conditions of `when`, `grow until`, `both`, `either` and `lacks` must be
+boolean, and `=`, `fuse`, `head`, `tail`, `@` and `cycle … across` need DNA/RNA operands,
+not loop counters or `bound`/`unbound`. Before this, Phase 1 silently treated, for example,
+`when g` as false.

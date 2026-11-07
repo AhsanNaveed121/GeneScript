@@ -1,0 +1,11 @@
+^^ All express statements of a gene must return the same type.
+gene mixed(dna d)
+    when d = ""
+        express transcribe(d)
+    stop
+    express d
+stop
+
+gene nucleus()
+    report mixed("ACGT")
+stop

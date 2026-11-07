@@ -1,0 +1,8 @@
+^^ A gene call must pass exactly as many arguments as the gene declares.
+gene pair(dna a, dna b)
+    express fuse a b
+stop
+
+gene nucleus()
+    report pair("AC")
+stop

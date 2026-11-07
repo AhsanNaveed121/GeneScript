@@ -1,0 +1,40 @@
+^^ Nested loops of every kind, and conditions inside loops.
+gene nucleus()
+    "ACG" -> dna g
+
+    "" -> dna pairs             ^^ across + counted (inner bound from #s)
+    cycle i across g
+        cycle j from 0 to #g
+            fuse (fuse pairs g@i) g@j -> pairs
+        stop
+    stop
+    report pairs
+
+    "" -> dna tri               ^^ inner bound is the outer counter
+    cycle i from 0 to #g
+        cycle j from i to #g
+            fuse tri g@j -> tri
+        stop
+    stop
+    report tri
+
+    "" -> dna out               ^^ grow inside counted; w redeclared each pass
+    cycle k from 0 to 2
+        "GT" -> dna w
+        grow until w = ""
+            fuse out head(w) -> out
+            tail(w) -> w
+        stop
+    stop
+    report out
+
+    "" -> dna gc                ^^ when inside two loops
+    cycle i across g
+        cycle j across g
+            when g@j = 'G' either g@j = 'C'
+                fuse gc g@j -> gc
+            stop
+        stop
+    stop
+    report gc
+stop

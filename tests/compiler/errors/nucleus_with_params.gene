@@ -1,0 +1,4 @@
+^^ nucleus() takes no parameters.
+gene nucleus(dna s)
+    report s
+stop

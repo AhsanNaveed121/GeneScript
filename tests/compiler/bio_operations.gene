@@ -1,0 +1,28 @@
+^^ Biological operations: head, tail, s@i, #s, fuse, ~ and transcribe.
+gene nucleus()
+    "GATTACA" -> dna g
+    report head(g)
+    report tail(g)
+    report g@3
+    report g@7                  ^^ out of range: ""
+    report ~g
+    report ~~g                  ^^ reverse complement twice gives g back
+    report transcribe(g)
+    report fuse (fuse head(g) g@3) tail(tail(g))
+
+    "" -> dna rev               ^^ #s as a loop bound
+    cycle i from 0 to #g
+        fuse g@i rev -> rev
+    stop
+    report rev
+
+    transcribe(g) -> rna r      ^^ the same operations on RNA
+    report head(r)
+    report tail(r)
+    report r@1
+    cycle i across r
+        when r@i = 'U'
+            report fuse r@i r@i
+        stop
+    stop
+stop

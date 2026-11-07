@@ -1,0 +1,3 @@
+tests/compiler/errors/call_wrong_arg_count.gene:7: gene 'pair' expects 2 arguments, but got 1.
+              pass one DNA or RNA sequence for each parameter of the gene.
+Compilation stopped: 1 error.

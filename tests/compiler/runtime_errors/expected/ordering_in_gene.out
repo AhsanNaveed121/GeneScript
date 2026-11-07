@@ -1,0 +1,2 @@
+A
+Runtime Error (line 3): ordering operators compare single bases only, but got "AC" and "G".

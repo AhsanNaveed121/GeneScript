@@ -1,0 +1,58 @@
+^^ halt (break) and skip (continue) inside genes, in every loop kind.
+gene before(dna s, dna stopper)     ^^ halt in cycle across
+    "" -> dna out
+    cycle i across s
+        when s@i = stopper
+            halt
+        stop
+        fuse out s@i -> out
+    stop
+    express out
+stop
+
+gene without(dna s, dna drop)       ^^ skip in cycle from-to
+    "" -> dna out
+    cycle i from 0 to #s
+        when s@i = drop
+            skip
+        stop
+        fuse out s@i -> out
+    stop
+    express out
+stop
+
+gene keep_until_t(dna s)            ^^ skip and halt in grow until
+    "" -> dna out
+    grow until s = ""
+        head(s) -> dna h
+        tail(s) -> s
+        when h = 'C'
+            skip
+        stop
+        when h = 'T'
+            halt
+        stop
+        fuse out h -> out
+    stop
+    express out
+stop
+
+gene common(dna a, dna b)           ^^ express from two nested loops
+    cycle i across a
+        cycle j across b
+            when a@i = b@j
+                express a@i
+            stop
+        stop
+    stop
+    express ""
+stop
+
+gene nucleus()
+    "ACGTACGT" -> dna g
+    report before(g, 'T')
+    report without(g, 'C')
+    report keep_until_t("AGCGTAA")
+    report common("TTGA", "CAG")
+    report common("TT", "CA")
+stop

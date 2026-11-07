@@ -1,0 +1,8 @@
+^^ Literals passed to a gene are checked against the parameter type.
+gene keep(dna d)
+    express d
+stop
+
+gene nucleus()
+    report keep("ATXG")
+stop

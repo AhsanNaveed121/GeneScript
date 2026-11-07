@@ -1,0 +1,18 @@
+^^ Variables: value-first declarations and assignments, including updates
+^^ that read the variable's own old value.
+gene nucleus()
+    "ATGC" -> dna g
+    g -> dna copy               ^^ a second variable holding the same value
+    tail(g) -> g                ^^ new value computed from the old one
+    report g
+    report copy                 ^^ unaffected by the assignment to g
+    fuse g g -> g
+    report g
+    "" -> dna empty
+    empty -> g
+    report g
+    "AUG" -> rna r
+    transcribe(copy) -> rna r2
+    fuse r r2 -> r
+    report r
+stop

@@ -44,6 +44,10 @@ public:
     void checkCycleBound(ExprAST* bound, std::shared_ptr<Scope> scope, const std::string& which);
     bool isNotSingleBase(ExprAST* expr, std::shared_ptr<Scope> scope);
 
+    // Sequence operands and boolean conditions
+    bool requireSequence(DataType t, SourceLoc loc, const std::string& what);
+    void checkCondition(ExprAST* expr, std::shared_ptr<Scope> scope, const std::string& where);
+
     bool isValidDNA(const std::string& s, char& invalid_char);
     bool isValidRNA(const std::string& s, char& invalid_char);
 };

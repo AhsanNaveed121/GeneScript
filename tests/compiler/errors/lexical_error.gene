@@ -1,0 +1,5 @@
+^^ An illegal character stops compilation.
+gene nucleus()
+    "ACGT" -> dna g $
+    report g
+stop

@@ -1,0 +1,66 @@
+^^ halt (break) and skip (continue) in every loop kind, including nested loops.
+gene nucleus()
+    "ACGTACGT" -> dna g
+
+    "" -> dna before_t          ^^ halt in cycle across
+    cycle i across g
+        when g@i = 'T'
+            halt
+        stop
+        fuse before_t g@i -> before_t
+    stop
+    report before_t
+
+    "" -> dna no_c              ^^ skip in cycle from-to
+    cycle i from 0 to #g
+        when g@i = 'C'
+            skip
+        stop
+        fuse no_c g@i -> no_c
+    stop
+    report no_c
+
+    ^^ halt and skip in grow until; variables declared before the jump
+    ^^ (h, and tmp inside the when) are released on the way out
+    "ACGT" -> dna s
+    "" -> dna kept
+    grow until s = ""
+        head(s) -> dna h
+        tail(s) -> s
+        when h = 'C'
+            skip
+        stop
+        when h = 'T'
+            fuse h h -> dna tmp
+            report tmp
+            halt
+        stop
+        fuse kept h -> kept
+    stop
+    report kept
+    report s
+
+    ^^ halt / skip leave only the innermost loop
+    "ACG" -> dna b
+    "" -> dna below
+    cycle i across b
+        cycle j across b
+            when b@j = b@i
+                halt
+            stop
+            fuse (fuse below b@i) b@j -> below
+        stop
+    stop
+    report below
+
+    "" -> dna off_diag
+    cycle i across b
+        cycle j across b
+            when b@j = b@i
+                skip
+            stop
+            fuse (fuse off_diag b@i) b@j -> off_diag
+        stop
+    stop
+    report off_diag
+stop

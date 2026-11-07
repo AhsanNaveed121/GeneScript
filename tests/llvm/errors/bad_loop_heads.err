@@ -1,0 +1,7 @@
+tests/llvm/errors/bad_loop_heads.gene:5: cycle 'to' bound must be an integer literal, #s, or an enclosing loop counter.
+              for example 'cycle i from 0 to #s' or 'cycle j from i to #s'.
+tests/llvm/errors/bad_loop_heads.gene:7: cycle 'to' bound must be an integer literal, #s, or an enclosing loop counter.
+              for example 'cycle i from 0 to #s' or 'cycle j from i to #s'.
+tests/llvm/errors/bad_loop_heads.gene:9: 'cycle ... across' needs a DNA or RNA sequence, not integer.
+              loop counters and bound/unbound values are not sequences.
+Compilation stopped: 3 errors.

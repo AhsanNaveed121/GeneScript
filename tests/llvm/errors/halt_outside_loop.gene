@@ -1,0 +1,7 @@
+^^ halt is only allowed inside a loop (a when block is not a loop).
+gene nucleus()
+    "ACGT" -> dna g
+    when g = "ACGT"
+        halt
+    stop
+stop

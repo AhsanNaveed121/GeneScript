@@ -8,8 +8,14 @@ src/*.o
 *.o
 *.obj
 *.exe
+*.ll
+*.bc
+*.s
 *.out
 !tests/expected/*.out
+!tests/llvm/expected/*.out
+!tests/compiler/expected/*.out
+!tests/compiler/runtime_errors/expected/*.out
 
 # System / editor files
 .DS_Store

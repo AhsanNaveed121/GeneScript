@@ -1,0 +1,40 @@
+^^ Loops inside genes: cycle across, cycle from-to, grow until, nesting,
+^^ express from inside a loop, and reassigning a parameter.
+gene suffix_from(dna s, dna base)   ^^ the suffix of s starting at the first `base`
+    cycle i across s
+        when s@i = base
+            "" -> dna out
+            cycle j from i to #s
+                fuse out s@j -> out
+            stop
+            express out
+        stop
+    stop
+    express ""
+stop
+
+gene drop_until(dna s, dna base)    ^^ grow until, reassigning the parameter s
+    grow until s = "" either head(s) = base
+        tail(s) -> s
+    stop
+    express s
+stop
+
+gene nucleus()
+    "GATTACA" -> dna g
+    report suffix_from(g, 'T')
+    report suffix_from(g, "C")
+    report suffix_from(g, 'G')
+    report suffix_from("TTT", 'A')
+    report drop_until(g, 'C')
+    report drop_until("AAA", 'G')
+    report g                        ^^ the caller's g is unchanged
+
+    "" -> dna grid
+    cycle i from 1 to 3
+        cycle j from 0 to i
+            fuse grid g@j -> grid
+        stop
+    stop
+    report grid
+stop

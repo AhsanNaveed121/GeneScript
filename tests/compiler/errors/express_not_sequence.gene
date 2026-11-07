@@ -1,0 +1,13 @@
+^^ A gene can only express DNA or RNA, never an integer or a condition.
+gene length_of(dna s)
+    express #s
+stop
+
+gene is_empty(dna s)
+    express s = ""
+stop
+
+gene nucleus()
+    report length_of("ACGT")
+    report is_empty("")
+stop

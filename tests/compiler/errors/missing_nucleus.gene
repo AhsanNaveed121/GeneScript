@@ -1,0 +1,4 @@
+^^ A program without gene nucleus() has no entry point.
+gene copy(dna s)
+    express s
+stop

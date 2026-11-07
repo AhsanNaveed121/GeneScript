@@ -1,0 +1,20 @@
+^^ DNA and RNA types: literals take their type from context (declaration,
+^^ parameter type, the other operand); T means DNA and U means RNA.
+gene to_rna(dna d)
+    express transcribe(d)
+stop
+
+gene rna_pair(rna a, rna b)
+    express fuse a b
+stop
+
+gene nucleus()
+    "ACG" -> dna d              ^^ no T or U: DNA because of the declaration
+    "ACG" -> rna r              ^^ same letters, RNA because of the declaration
+    report fuse d "T"
+    report fuse r "U"
+    report rna_pair(to_rna(d), "GG")    ^^ "GG" takes the rna parameter type
+    report rna_pair('A', r)
+    "" -> rna e
+    report fuse e to_rna("TT")
+stop

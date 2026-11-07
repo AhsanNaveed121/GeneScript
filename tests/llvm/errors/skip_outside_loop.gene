@@ -1,0 +1,6 @@
+^^ skip is only allowed inside a loop.
+gene nucleus()
+    "ACGT" -> dna g
+    skip
+    report g
+stop

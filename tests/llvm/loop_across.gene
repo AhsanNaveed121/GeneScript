@@ -1,0 +1,22 @@
+^^ cycle i across s: visits every base, i = 0 .. len(s)-1.
+gene nucleus()
+    "ATGC" -> dna g
+    cycle i across g
+        report g@i
+    stop
+
+    ^^ s is evaluated once: shrinking g inside the loop still gives 4 passes
+    "" -> dna seen
+    cycle i across g
+        fuse seen g@i -> seen
+        tail(g) -> g
+    stop
+    report seen
+    report g
+
+    ^^ the loop holds a temporary sequence for its whole duration
+    "AUGC" -> rna r
+    cycle k across transcribe("TTA")
+        report r@k
+    stop
+stop

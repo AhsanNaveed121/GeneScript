@@ -1,0 +1,22 @@
+^^ Simple if/else: when ... otherwise ... stop, and when ... stop alone.
+gene nucleus()
+    "GATTACA" -> dna g
+    when head(g) = 'G'          ^^ true: then-branch
+        report "GGG"
+    otherwise
+        report "AAA"
+    stop
+    when head(g) = 'C'          ^^ false: otherwise-branch
+        report "CCC"
+    otherwise
+        report tail(g)
+    stop
+    when g = ""                 ^^ false, no otherwise: nothing happens
+        report "TTT"
+    stop
+    when bound                  ^^ variable declared inside a branch
+        fuse g g -> dna twice
+        report twice
+    stop
+    report g
+stop

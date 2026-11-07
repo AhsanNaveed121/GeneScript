@@ -1,0 +1,6 @@
+^^ Statements must be inside a gene.
+"ACGT" -> dna g
+
+gene nucleus()
+    report "ACGT"
+stop

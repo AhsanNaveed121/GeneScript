@@ -1,0 +1,10 @@
+tests/llvm/errors/counter_misuse.gene:5: cannot assign to loop counter 'i'.
+              Loop counters are read-only.
+tests/llvm/errors/counter_misuse.gene:6: comparison '=' needs a DNA or RNA sequence, not integer.
+              loop counters and bound/unbound values are not sequences.
+tests/llvm/errors/counter_misuse.gene:9: 'when' needs a condition, not integer.
+              use bound, unbound or a comparison such as 's = ""' or 's@i < 'G''.
+tests/llvm/errors/counter_misuse.gene:12: head() needs a DNA or RNA sequence, not integer.
+              loop counters and bound/unbound values are not sequences.
+tests/llvm/errors/counter_misuse.gene:14: undeclared variable or sequence 'i'.
+Compilation stopped: 5 errors.

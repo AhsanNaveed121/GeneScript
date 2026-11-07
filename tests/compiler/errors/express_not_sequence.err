@@ -1,0 +1,5 @@
+tests/compiler/errors/express_not_sequence.gene:3: length '#' can only be used as a loop bound.
+              #s cannot be stored, compared, passed, returned or reported; use it as in 'cycle i from 0 to #s'.
+tests/compiler/errors/express_not_sequence.gene:7: a gene can only express DNA or RNA, not boolean.
+              every value returned by a gene must be a biological sequence.
+Compilation stopped: 2 errors.

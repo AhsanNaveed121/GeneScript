@@ -1,0 +1,28 @@
+^^ Genes and parameters: several parameters, RNA parameters, calls as
+^^ arguments and conditions, and a gene with no express (returns "").
+gene join3(dna a, dna b, dna c)
+    express fuse (fuse a b) c
+stop
+
+gene shout(rna r)                   ^^ used only for its output
+    report r
+stop
+
+gene with_complement(dna d)
+    express fuse d ~d
+stop
+
+gene nucleus()
+    "AC" -> dna a
+    report join3(a, "GT", a)
+    report join3(head(a), tail(a), "")
+    report shout(transcribe("ATC"))     ^^ prints AUC, then "" (no express)
+    report with_complement(a)
+    when with_complement(a) = "ACGT"
+        report "TT"
+    stop
+    report join3(with_complement("A"), with_complement("C"), with_complement("G"))
+    "A" -> dna d                        ^^ same name as the parameter of with_complement
+    report with_complement(d)
+    report d
+stop
