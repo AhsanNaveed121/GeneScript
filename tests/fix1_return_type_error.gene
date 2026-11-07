@@ -1,0 +1,13 @@
+^^ Fix 1 (error): express statements in one gene disagree on the type.
+
+gene mixed(dna d)
+    when d = ""
+        transcribe(d) -> rna r
+        express r             ^^ makes the return type rna
+    stop
+    express d                 ^^ error: dna, but the gene returns rna
+stop
+
+gene nucleus()
+    report mixed("ACGT")
+stop

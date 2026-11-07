@@ -1,0 +1,5 @@
+tests/fix3_duplicate_genes_error.gene:7: duplicate gene 'copy'.
+              gene 'copy' is already defined at line 3; each gene name must be unique.
+tests/fix3_duplicate_genes_error.gene:15: multiple definitions of entry point 'gene nucleus()'.
+              a program must have exactly one nucleus(); the first one is at line 11.
+Compilation stopped: 2 errors.

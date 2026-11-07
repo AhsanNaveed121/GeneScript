@@ -1,0 +1,9 @@
+^^ Fix 5 (error): a variable holding a whole sequence is caught at run time.
+
+gene nucleus()
+    "ACGT" -> dna g
+    report g
+    when g < 'C'              ^^ error at run time: g has 4 bases
+        report g
+    stop
+stop

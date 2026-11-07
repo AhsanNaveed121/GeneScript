@@ -1,0 +1,7 @@
+tests/fix2_call_args_error.gene:10: argument 1 of gene 'only_dna' must be dna, but got rna.
+              DNA and RNA are separate types; a parameter accepts only its declared type.
+tests/fix2_call_args_error.gene:11: argument 1 of gene 'only_dna' must be dna, but got integer.
+              integers (such as #s or loop counters) cannot be passed to a gene; only DNA or RNA can.
+tests/fix2_call_args_error.gene:13: argument 1 of gene 'only_dna' must be dna, but got integer.
+              integers (such as #s or loop counters) cannot be passed to a gene; only DNA or RNA can.
+Compilation stopped: 3 errors.

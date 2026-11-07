@@ -1,0 +1,5 @@
+^^ Fix 3 (error): a program with genes but no nucleus().
+
+gene copy(dna s)
+    express s
+stop

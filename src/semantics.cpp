@@ -131,12 +131,26 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
             bin->deduced_type = (t1 != TYPE_UNKNOWN) ? t1 : t2;
             return bin->deduced_type;
         }
-        if (bin->op == OP_EQ) {
-            DataType t1 = checkExpr(bin->lhs.get(), scope, TYPE_UNKNOWN);
-            DataType t2 = checkExpr(bin->rhs.get(), scope, t1);
-            if (t1 == TYPE_UNKNOWN && t2 != TYPE_UNKNOWN) {
+        // Type both sides of a comparison. A literal without T or U (like 'G' or "")
+        // has no type of its own, so it takes its type from the other side.
+        auto checkComparisonOperands = [&](DataType& t1, DataType& t2) {
+            auto* llit = dynamic_cast<LiteralExprAST*>(bin->lhs.get());
+            bool lhs_ambiguous = llit && llit->value.find('T') == std::string::npos &&
+                                 llit->value.find('U') == std::string::npos;
+            if (lhs_ambiguous) {
+                t2 = checkExpr(bin->rhs.get(), scope, TYPE_UNKNOWN);
                 t1 = checkExpr(bin->lhs.get(), scope, t2);
+            } else {
+                t1 = checkExpr(bin->lhs.get(), scope, TYPE_UNKNOWN);
+                t2 = checkExpr(bin->rhs.get(), scope, t1);
+                if (t1 == TYPE_UNKNOWN && t2 != TYPE_UNKNOWN) {
+                    t1 = checkExpr(bin->lhs.get(), scope, t2);
+                }
             }
+        };
+        if (bin->op == OP_EQ) {
+            DataType t1, t2;
+            checkComparisonOperands(t1, t2);
             if (t1 != TYPE_UNKNOWN && t2 != TYPE_UNKNOWN && t1 != t2) {
                 reportError(bin->loc, "cannot compare " + dataTypeToString(t1) + " with " + dataTypeToString(t2) + " using '='.",
                             "comparison '=' requires sequences of the same type.");
@@ -145,9 +159,14 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
             return TYPE_BOOL;
         }
         if (bin->op == OP_LT || bin->op == OP_GT || bin->op == OP_LE || bin->op == OP_GE) {
-            DataType t1 = checkExpr(bin->lhs.get(), scope, TYPE_UNKNOWN);
-            DataType t2 = checkExpr(bin->rhs.get(), scope, t1);
-            if (t1 != TYPE_UNKNOWN && t2 != TYPE_UNKNOWN && t1 != t2) {
+            static const char* op_names[] = {"", "", "<", ">", "<=", ">="};
+            std::string op_name = op_names[bin->op];
+            DataType t1, t2;
+            checkComparisonOperands(t1, t2);
+            if (isNotSingleBase(bin->lhs.get(), scope) || isNotSingleBase(bin->rhs.get(), scope)) {
+                reportError(bin->loc, "ordering operator '" + op_name + "' compares single bases only.",
+                            "use a base such as 'G', head(s) or s@i; compare whole sequences with '='.");
+            } else if (t1 != TYPE_UNKNOWN && t2 != TYPE_UNKNOWN && t1 != t2) {
                 reportError(bin->loc, "cannot compare " + dataTypeToString(t1) + " with " + dataTypeToString(t2) + ".",
                             "ordering comparisons (<, >, <=, >=) compare bases of the same type.");
             }
@@ -177,9 +196,12 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
             return TYPE_BOOL;
         }
         if (un->op == OP_LEN) {
-            checkExpr(un->operand.get(), scope, TYPE_UNKNOWN);
-            un->deduced_type = TYPE_INT;
-            return TYPE_INT;
+            // Valid uses of #s (cycle bounds) are handled by checkCycleBound and never
+            // reach this point, so any # seen here is misplaced.
+            checkLenOperand(un, scope);
+            reportError(un->loc, "length '#' can only be used as a loop bound.",
+                        "#s cannot be stored, compared, passed, returned or reported; use it as in 'cycle i from 0 to #s'.");
+            return TYPE_UNKNOWN;
         }
     }
     if (auto* bc = dynamic_cast<BuiltinCallExprAST*>(expr)) {
@@ -200,9 +222,17 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
     }
     if (auto* idx = dynamic_cast<IndexExprAST*>(expr)) {
         DataType tseq = checkExpr(idx->seq.get(), scope, expected);
-        DataType tidx = checkExpr(idx->index.get(), scope, TYPE_INT);
-        if (tidx != TYPE_INT && tidx != TYPE_UNKNOWN) {
-            reportError(idx->loc, "index in sequence indexing (@) must be an integer.");
+        bool valid_index = false;
+        if (dynamic_cast<IntLiteralExprAST*>(idx->index.get())) {
+            valid_index = true;
+        } else if (auto* iv = dynamic_cast<VarExprAST*>(idx->index.get())) {
+            Symbol* sym = scope->lookup(iv->name);
+            valid_index = !sym || sym->is_counter; // undeclared is reported by checkExpr
+        }
+        checkIntPosition(idx->index.get(), scope);
+        if (!valid_index) {
+            reportError(idx->loc, "position in s@i must be a loop counter or an integer literal.",
+                        "write s@i inside 'cycle i ...' or use a fixed position such as s@0.");
         }
         idx->deduced_type = tseq;
         return tseq;
@@ -220,7 +250,20 @@ DataType SemanticAnalyzer::checkExpr(ExprAST* expr, std::shared_ptr<Scope> scope
                         std::to_string(call->args.size()) + ".");
         } else {
             for (size_t i = 0; i < call->args.size(); ++i) {
-                checkExpr(call->args[i].get(), scope, sig.param_types[i]);
+                DataType param_t = sig.param_types[i];
+                DataType arg_t = checkIntPosition(call->args[i].get(), scope, param_t);
+                if (arg_t == TYPE_UNKNOWN || arg_t == param_t) continue;
+                std::string note;
+                if (arg_t == TYPE_INT) {
+                    note = "integers (such as #s or loop counters) cannot be passed to a gene; only DNA or RNA can.";
+                } else if (arg_t == TYPE_BOOL) {
+                    note = "bound/unbound values cannot be passed to a gene; only DNA or RNA can.";
+                } else {
+                    note = "DNA and RNA are separate types; a parameter accepts only its declared type.";
+                }
+                reportError(call->args[i]->loc, "argument " + std::to_string(i + 1) + " of gene '" + call->callee +
+                            "' must be " + dataTypeToString(param_t) + ", but got " + dataTypeToString(arg_t) + ".",
+                            note);
             }
         }
         call->deduced_type = sig.return_type;
@@ -280,9 +323,13 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
 
     if (auto* exp = dynamic_cast<ExpressStmtAST*>(stmt)) {
         DataType t = checkExpr(exp->expr.get(), scope, enclosing_gene_ret);
-        if (enclosing_gene_ret != TYPE_UNKNOWN && t != TYPE_UNKNOWN && t != enclosing_gene_ret) {
+        if (t == TYPE_INT || t == TYPE_BOOL) {
+            reportError(exp->loc, "a gene can only express DNA or RNA, not " + dataTypeToString(t) + ".",
+                        "every value returned by a gene must be a biological sequence.");
+        } else if (enclosing_gene_ret != TYPE_UNKNOWN && t != TYPE_UNKNOWN && t != enclosing_gene_ret) {
             reportError(exp->loc, "gene return type mismatch: returning " + dataTypeToString(t) +
-                        " but expected " + dataTypeToString(enclosing_gene_ret) + ".");
+                        " but expected " + dataTypeToString(enclosing_gene_ret) + ".",
+                        "every express statement in a gene must return the same sequence type.");
         }
         return;
     }
@@ -320,8 +367,8 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
     }
 
     if (auto* cft = dynamic_cast<CycleFromToStmtAST*>(stmt)) {
-        checkExpr(cft->from_expr.get(), scope, TYPE_INT);
-        checkExpr(cft->to_expr.get(), scope, TYPE_INT);
+        checkCycleBound(cft->from_expr.get(), scope, "from");
+        checkCycleBound(cft->to_expr.get(), scope, "to");
         auto loop_scope = std::make_shared<Scope>(scope);
         Symbol counter_sym;
         counter_sym.name = cft->counter_var;
@@ -359,34 +406,218 @@ void SemanticAnalyzer::checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, Da
     }
 }
 
-// First pass: collect gene signatures to allow forward calls & mutual recursion
-void collectSignatures(ProgramAST& prog, SemanticAnalyzer& sem) {
+// ---------------------------------------------------------------------------
+// Integer rules from the proposal: #s only as a loop bound, s@i positions,
+// and cycle bounds.
+// ---------------------------------------------------------------------------
+
+// Checks the operand of #s without reporting the "# outside a loop bound" error.
+DataType SemanticAnalyzer::checkLenOperand(UnaryExprAST* len, std::shared_ptr<Scope> scope) {
+    DataType t = checkExpr(len->operand.get(), scope, TYPE_UNKNOWN);
+    if (t == TYPE_INT || t == TYPE_BOOL) {
+        reportError(len->loc, "length '#' requires a DNA or RNA sequence, not " + dataTypeToString(t) + ".",
+                    "#s counts the bases in the sequence s.");
+    }
+    len->deduced_type = TYPE_INT;
+    return TYPE_INT;
+}
+
+// Checks an expression in a position where the caller reports a more specific
+// error than "misplaced #" (gene arguments, s@i positions, cycle bounds).
+DataType SemanticAnalyzer::checkIntPosition(ExprAST* expr, std::shared_ptr<Scope> scope, DataType expected) {
+    auto* un = dynamic_cast<UnaryExprAST*>(expr);
+    if (un && un->op == OP_LEN) {
+        return checkLenOperand(un, scope);
+    }
+    return checkExpr(expr, scope, expected);
+}
+
+// cycle i from a to b: a and b may only be integer literals, #s, or an enclosing loop counter.
+void SemanticAnalyzer::checkCycleBound(ExprAST* bound, std::shared_ptr<Scope> scope, const std::string& which) {
+    bool valid = false;
+    if (dynamic_cast<IntLiteralExprAST*>(bound)) {
+        valid = true;
+    } else if (auto* un = dynamic_cast<UnaryExprAST*>(bound)) {
+        valid = (un->op == OP_LEN);
+    } else if (auto* var = dynamic_cast<VarExprAST*>(bound)) {
+        Symbol* sym = scope->lookup(var->name);
+        valid = !sym || sym->is_counter; // undeclared is reported by checkExpr
+    }
+    checkIntPosition(bound, scope, TYPE_INT);
+    if (!valid) {
+        reportError(bound->loc, "cycle '" + which + "' bound must be an integer literal, #s, or an enclosing loop counter.",
+                    "for example 'cycle i from 0 to #s' or 'cycle j from i to #s'.");
+    }
+}
+
+// True when an operand of <, >, <=, >= can never be a single base.
+// Variables and gene calls of sequence type are checked at run time instead.
+bool SemanticAnalyzer::isNotSingleBase(ExprAST* expr, std::shared_ptr<Scope> scope) {
+    if (auto* lit = dynamic_cast<LiteralExprAST*>(expr)) {
+        return lit->value.size() != 1;
+    }
+    if (dynamic_cast<IntLiteralExprAST*>(expr) || dynamic_cast<BoolLiteralExprAST*>(expr)) {
+        return true;
+    }
+    if (auto* var = dynamic_cast<VarExprAST*>(expr)) {
+        Symbol* sym = scope->lookup(var->name);
+        return sym && (sym->type == TYPE_INT || sym->type == TYPE_BOOL);
+    }
+    if (dynamic_cast<BinaryExprAST*>(expr)) {
+        return true; // fuse builds sequences; other binary operators give bound/unbound
+    }
+    if (auto* un = dynamic_cast<UnaryExprAST*>(expr)) {
+        if (un->op == OP_REVCOMP) return isNotSingleBase(un->operand.get(), scope);
+        return true;
+    }
+    if (auto* bc = dynamic_cast<BuiltinCallExprAST*>(expr)) {
+        if (bc->op == BUILTIN_HEAD) return false;
+        if (bc->op == BUILTIN_TRANSCRIBE) return isNotSingleBase(bc->arg.get(), scope);
+        return true; // tail
+    }
+    return false; // s@i and gene calls
+}
+
+// ---------------------------------------------------------------------------
+// Return type inference. Runs silently (no errors); the normal checking pass
+// afterwards reports any express statement that disagrees with the result.
+// ---------------------------------------------------------------------------
+
+DataType SemanticAnalyzer::inferExprType(ExprAST* expr, std::shared_ptr<Scope> scope) {
+    if (!expr) return TYPE_UNKNOWN;
+    if (auto* lit = dynamic_cast<LiteralExprAST*>(expr)) {
+        // Only T or U fixes a literal's type; "" or "ACG" depends on context.
+        if (lit->value.find('T') != std::string::npos) return TYPE_DNA;
+        if (lit->value.find('U') != std::string::npos) return TYPE_RNA;
+        return TYPE_UNKNOWN;
+    }
+    if (dynamic_cast<IntLiteralExprAST*>(expr)) return TYPE_INT;
+    if (dynamic_cast<BoolLiteralExprAST*>(expr)) return TYPE_BOOL;
+    if (auto* var = dynamic_cast<VarExprAST*>(expr)) {
+        Symbol* sym = scope->lookup(var->name);
+        return sym ? sym->type : TYPE_UNKNOWN;
+    }
+    if (auto* bin = dynamic_cast<BinaryExprAST*>(expr)) {
+        if (bin->op != OP_FUSE) return TYPE_BOOL;
+        DataType t = inferExprType(bin->lhs.get(), scope);
+        return t != TYPE_UNKNOWN ? t : inferExprType(bin->rhs.get(), scope);
+    }
+    if (auto* un = dynamic_cast<UnaryExprAST*>(expr)) {
+        if (un->op == OP_REVCOMP) return TYPE_DNA;
+        if (un->op == OP_LACKS) return TYPE_BOOL;
+        return TYPE_INT;
+    }
+    if (auto* bc = dynamic_cast<BuiltinCallExprAST*>(expr)) {
+        if (bc->op == BUILTIN_TRANSCRIBE) return TYPE_RNA;
+        return inferExprType(bc->arg.get(), scope);
+    }
+    if (auto* idx = dynamic_cast<IndexExprAST*>(expr)) {
+        return inferExprType(idx->seq.get(), scope);
+    }
+    if (auto* call = dynamic_cast<CallExprAST*>(expr)) {
+        auto it = gene_signatures.find(call->callee);
+        return it != gene_signatures.end() ? it->second.return_type : TYPE_UNKNOWN;
+    }
+    return TYPE_UNKNOWN;
+}
+
+// Collects the type of every express statement in a body, including those nested
+// in when / cycle / grow blocks, while tracking declared variables and counters.
+void SemanticAnalyzer::collectExpressTypes(const std::vector<std::unique_ptr<StmtAST>>& body,
+                                           std::shared_ptr<Scope> scope, std::vector<DataType>& out) {
+    for (const auto& stmt : body) {
+        StmtAST* s = stmt.get();
+        if (auto* decl = dynamic_cast<DeclStmtAST*>(s)) {
+            scope->declare({decl->var_name, decl->declared_type, false, decl->loc});
+        } else if (auto* exp = dynamic_cast<ExpressStmtAST*>(s)) {
+            out.push_back(inferExprType(exp->expr.get(), scope));
+        } else if (auto* w = dynamic_cast<WhenStmtAST*>(s)) {
+            for (const auto& b : w->branches) {
+                collectExpressTypes(b.body, std::make_shared<Scope>(scope), out);
+            }
+            collectExpressTypes(w->otherwise_body, std::make_shared<Scope>(scope), out);
+        } else if (auto* ca = dynamic_cast<CycleAcrossStmtAST*>(s)) {
+            auto loop_scope = std::make_shared<Scope>(scope);
+            loop_scope->declare({ca->counter_var, TYPE_INT, true, ca->loc});
+            collectExpressTypes(ca->body, loop_scope, out);
+        } else if (auto* cft = dynamic_cast<CycleFromToStmtAST*>(s)) {
+            auto loop_scope = std::make_shared<Scope>(scope);
+            loop_scope->declare({cft->counter_var, TYPE_INT, true, cft->loc});
+            collectExpressTypes(cft->body, loop_scope, out);
+        } else if (auto* gr = dynamic_cast<GrowUntilStmtAST*>(s)) {
+            collectExpressTypes(gr->body, std::make_shared<Scope>(scope), out);
+        }
+    }
+}
+
+static bool sameLoc(SourceLoc a, SourceLoc b) {
+    return a.line == b.line && a.col == b.col;
+}
+
+// Repeats until no gene's return type changes, so a gene that expresses the
+// result of another gene (in any order, including mutual recursion) is resolved.
+void SemanticAnalyzer::inferReturnTypes(ProgramAST& prog) {
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (auto& gene : prog.genes) {
+            GeneSignature& sig = gene_signatures[gene->name];
+            if (!sameLoc(sig.loc, gene->loc)) continue; // duplicate definition
+            if (sig.return_type != TYPE_UNKNOWN) continue;
+
+            auto scope = std::make_shared<Scope>();
+            for (const auto& p : gene->params) {
+                scope->declare({p.name, p.type, false, p.loc});
+            }
+            std::vector<DataType> types;
+            collectExpressTypes(gene->body, scope, types);
+            for (DataType t : types) {
+                if (t == TYPE_DNA || t == TYPE_RNA) {
+                    sig.return_type = t;
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+    // Nothing fixes the type (no express, or only literals like ""): default to DNA,
+    // matching the proposal's rule for ambiguous literals.
+    for (auto& entry : gene_signatures) {
+        if (entry.second.return_type == TYPE_UNKNOWN) {
+            entry.second.return_type = TYPE_DNA;
+        }
+    }
+}
+
+bool SemanticAnalyzer::analyze(ProgramAST& prog) {
+    // Pass 1: collect gene signatures (allows forward calls & mutual recursion)
+    // and reject duplicate gene names.
     for (auto& gene : prog.genes) {
+        auto existing = gene_signatures.find(gene->name);
+        if (existing != gene_signatures.end()) {
+            std::string first_line = std::to_string(existing->second.loc.line);
+            if (gene->name == "nucleus") {
+                reportError(gene->loc, "multiple definitions of entry point 'gene nucleus()'.",
+                            "a program must have exactly one nucleus(); the first one is at line " + first_line + ".");
+            } else {
+                reportError(gene->loc, "duplicate gene '" + gene->name + "'.",
+                            "gene '" + gene->name + "' is already defined at line " + first_line +
+                            "; each gene name must be unique.");
+            }
+            continue;
+        }
         GeneSignature sig;
         sig.name = gene->name;
         sig.loc = gene->loc;
         for (const auto& p : gene->params) {
             sig.param_types.push_back(p.type);
         }
-        // Infer return type from express statements in gene body
         sig.return_type = TYPE_UNKNOWN;
-        for (const auto& stmt : gene->body) {
-            if (auto* exp = dynamic_cast<ExpressStmtAST*>(stmt.get())) {
-                if (auto* lit = dynamic_cast<LiteralExprAST*>(exp->expr.get())) {
-                    if (lit->value.find('U') != std::string::npos) sig.return_type = TYPE_RNA;
-                    else sig.return_type = TYPE_DNA;
-                }
-            }
-        }
-        if (sig.return_type == TYPE_UNKNOWN) {
-            sig.return_type = TYPE_DNA; // default
-        }
-        sem.gene_signatures[gene->name] = sig;
+        gene_signatures[gene->name] = sig;
     }
-}
 
-bool SemanticAnalyzer::analyze(ProgramAST& prog) {
-    collectSignatures(prog, *this);
+    // Pass 2: infer return types from all express statements.
+    inferReturnTypes(prog);
 
     auto global_scope = std::make_shared<Scope>();
 
@@ -395,6 +626,7 @@ bool SemanticAnalyzer::analyze(ProgramAST& prog) {
         checkStmt(stmt.get(), global_scope, TYPE_UNKNOWN, 0);
     }
 
+    // Pass 3: check every gene body.
     for (auto& gene : prog.genes) {
         if (gene->name == "nucleus") {
             has_nucleus = true;
@@ -416,13 +648,17 @@ bool SemanticAnalyzer::analyze(ProgramAST& prog) {
             }
         }
 
-        DataType ret_type = gene_signatures[gene->name].return_type;
+        // A duplicate definition has no signature of its own; check its body without a return type.
+        const GeneSignature& sig = gene_signatures[gene->name];
+        DataType ret_type = sameLoc(sig.loc, gene->loc) ? sig.return_type : TYPE_UNKNOWN;
         for (auto& s : gene->body) {
             checkStmt(s.get(), gene_scope, ret_type, 0);
         }
     }
 
-    if (!has_nucleus && prog.top_level_stmts.empty()) {
+    // Every program with genes needs exactly one nucleus(). A file with only
+    // top-level statements (like the proposal's error.gene snippet) is exempt.
+    if (!has_nucleus && (!prog.genes.empty() || prog.top_level_stmts.empty())) {
         reportError({1, 1}, "missing entry point 'gene nucleus()'.",
                     "GeneScript programs must define a gene nucleus() with no parameters.");
     }

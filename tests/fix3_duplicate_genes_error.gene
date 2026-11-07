@@ -1,0 +1,17 @@
+^^ Fix 3 (error): duplicate gene names, including two nucleus() genes.
+
+gene copy(dna s)
+    express s
+stop
+
+gene copy(dna s)              ^^ error: duplicate gene
+    express ~s
+stop
+
+gene nucleus()
+    report copy("ACGT")
+stop
+
+gene nucleus()                ^^ error: second entry point
+    report copy("TTTT")
+stop

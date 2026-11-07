@@ -1,0 +1,31 @@
+^^ Fix 5 (valid): ordering operators compare single bases.
+
+gene smaller(dna a, dna b)    ^^ variables holding single bases
+    when a < b
+        express a
+    stop
+    express b
+stop
+
+gene nucleus()
+    "GATTACA" -> dna g
+    "" -> dna low
+    cycle i across g
+        when g@i <= 'C'
+            fuse low g@i -> low
+        stop
+    stop
+    report low
+    when head(g) > 'A'
+        report head(g)
+    stop
+    report smaller(g@1, g@2)
+    when 'T' >= g@2
+        report "TT"
+    stop
+
+    "GAU" -> rna r
+    when 'A' < r@0            ^^ 'A' takes the RNA type from r@0
+        report r@0
+    stop
+stop

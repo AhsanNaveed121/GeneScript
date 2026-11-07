@@ -1,0 +1,37 @@
+^^ Fix 1 (valid): a gene's return type is inferred from all of its express
+^^ statements, including nested ones, variables and other genes' results.
+
+gene to_rna(dna d)            ^^ returns RNA through a variable
+    transcribe(d) -> rna r
+    express r
+stop
+
+gene first_g(rna r)           ^^ express nested in cycle/when; "" then takes the RNA type
+    cycle i across r
+        when r@i = 'G'
+            express r@i
+        stop
+    stop
+    express ""
+stop
+
+gene wrap(dna d)              ^^ return type comes from a gene defined later
+    express later(d)
+stop
+
+gene later(dna d)             ^^ express nested in grow until
+    grow until unbound
+        express transcribe(d)
+    stop
+    express transcribe(d)
+stop
+
+gene nucleus()
+    "ATGC" -> dna g
+    to_rna(g) -> rna r
+    report r
+    report first_g(r)
+    report wrap("TTAG")
+    fuse to_rna(g) wrap(g) -> rna joined
+    report joined
+stop

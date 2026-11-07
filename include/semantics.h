@@ -32,6 +32,18 @@ public:
     void checkStmt(StmtAST* stmt, std::shared_ptr<Scope> scope, DataType enclosing_gene_ret, int loop_depth);
     void checkGene(GeneDeclAST* gene);
 
+    // Return type inference (silent, no errors reported)
+    void inferReturnTypes(ProgramAST& prog);
+    DataType inferExprType(ExprAST* expr, std::shared_ptr<Scope> scope);
+    void collectExpressTypes(const std::vector<std::unique_ptr<StmtAST>>& body,
+                             std::shared_ptr<Scope> scope, std::vector<DataType>& out);
+
+    // Proposal rules for integers and single bases
+    DataType checkLenOperand(UnaryExprAST* len, std::shared_ptr<Scope> scope);
+    DataType checkIntPosition(ExprAST* expr, std::shared_ptr<Scope> scope, DataType expected = TYPE_UNKNOWN);
+    void checkCycleBound(ExprAST* bound, std::shared_ptr<Scope> scope, const std::string& which);
+    bool isNotSingleBase(ExprAST* expr, std::shared_ptr<Scope> scope);
+
     bool isValidDNA(const std::string& s, char& invalid_char);
     bool isValidRNA(const std::string& s, char& invalid_char);
 };

@@ -41,6 +41,16 @@ Value BinaryExprAST::evaluate(InterpreterContext& ctx) {
     Value l = lhs->evaluate(ctx);
     Value r = rhs->evaluate(ctx);
 
+    // Ordering operators compare single bases only. Literals and expressions are
+    // checked at compile time; variables and gene results are checked here.
+    if (op == OP_LT || op == OP_GT || op == OP_LE || op == OP_GE) {
+        if (l.str_val.length() != 1 || r.str_val.length() != 1) {
+            throw std::runtime_error("Runtime Error (line " + std::to_string(loc.line) +
+                                     "): ordering operators compare single bases only, but got \"" +
+                                     l.str_val + "\" and \"" + r.str_val + "\".");
+        }
+    }
+
     switch (op) {
         case OP_FUSE: {
             Value res;
@@ -197,12 +207,12 @@ ExecStatus WhenStmtAST::execute(InterpreterContext& ctx, Value& return_val) {
 }
 
 ExecStatus CycleAcrossStmtAST::execute(InterpreterContext& ctx, Value& return_val) {
-    Value s = seq_expr->evaluate(ctx);
-    long long len = s.str_val.length();
-    for (long long i = 0; i < len; ++i) {
-        ctx.setVar(counter_var, Value::makeInt(i));
+    Value s = seq_expr->evaluate(ctx);//gets the DNA Sequence
+    long long len = s.str_val.length();// calcultes its length
+    for (long long i = 0; i < len; ++i) { // visits every index
+        ctx.setVar(counter_var, Value::makeInt(i));//sets the GeneScript loop counter i
         for (auto& stmt : body) {
-            ExecStatus st = stmt->execute(ctx, return_val);
+            ExecStatus st = stmt->execute(ctx, return_val);//executes each statment inside the genescript loop
             if (st == STATUS_HALT) return STATUS_NORMAL;
             if (st == STATUS_SKIP) break;
             if (st == STATUS_RETURN) return STATUS_RETURN;

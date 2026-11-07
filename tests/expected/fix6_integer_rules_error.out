@@ -1,0 +1,11 @@
+tests/fix6_integer_rules_error.gene:6: length '#' can only be used as a loop bound.
+              #s cannot be stored, compared, passed, returned or reported; use it as in 'cycle i from 0 to #s'.
+tests/fix6_integer_rules_error.gene:7: length '#' can only be used as a loop bound.
+              #s cannot be stored, compared, passed, returned or reported; use it as in 'cycle i from 0 to #s'.
+tests/fix6_integer_rules_error.gene:8: position in s@i must be a loop counter or an integer literal.
+              write s@i inside 'cycle i ...' or use a fixed position such as s@0.
+tests/fix6_integer_rules_error.gene:9: cycle 'to' bound must be an integer literal, #s, or an enclosing loop counter.
+              for example 'cycle i from 0 to #s' or 'cycle j from i to #s'.
+tests/fix6_integer_rules_error.gene:11: cycle 'from' bound must be an integer literal, #s, or an enclosing loop counter.
+              for example 'cycle i from 0 to #s' or 'cycle j from i to #s'.
+Compilation stopped: 5 errors.

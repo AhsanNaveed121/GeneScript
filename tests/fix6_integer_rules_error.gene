@@ -1,0 +1,13 @@
+^^ Fix 6 (error): integers used outside loop bounds and positions.
+
+gene nucleus()
+    "ACGT" -> dna g
+    "A" -> dna x
+    #g -> dna n               ^^ error: #g stored
+    report #g                 ^^ error: #g reported
+    report g@x                ^^ error: position is a dna variable
+    cycle i from 0 to x       ^^ error: bound is a dna variable
+    stop
+    cycle i from head(g) to 3 ^^ error: bound is an expression
+    stop
+stop

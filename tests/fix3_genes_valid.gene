@@ -1,0 +1,15 @@
+^^ Fix 3 (valid): unique gene names and exactly one nucleus().
+
+gene copy(dna s)
+    express s
+stop
+
+gene copy_rc(dna s)
+    express ~s
+stop
+
+gene nucleus()
+    "AAGC" -> dna g
+    report copy(g)
+    report copy_rc(g)
+stop

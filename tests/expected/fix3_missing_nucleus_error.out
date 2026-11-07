@@ -1,0 +1,3 @@
+tests/fix3_missing_nucleus_error.gene:1: missing entry point 'gene nucleus()'.
+              GeneScript programs must define a gene nucleus() with no parameters.
+Compilation stopped: 1 error.

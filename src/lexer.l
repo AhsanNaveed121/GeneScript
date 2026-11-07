@@ -7,6 +7,10 @@
 extern int yylineno;
 int yycolumn = 1;
 
+// Set by main.cpp; lexical errors are counted so compilation can stop.
+const char* g_source_name = "";
+int g_lex_errors = 0;
+
 #define YY_USER_ACTION \
     yylloc.first_line = yylineno; \
     yylloc.first_column = yycolumn; \
@@ -89,7 +93,9 @@ int yycolumn = 1;
                         }
 
 .                       {
-                            fprintf(stderr, "Lexical Error at line %d: unrecognized character '%s'\n", yylineno, yytext);
+                            ++g_lex_errors;
+                            fprintf(stderr, "%s:%d: unrecognized character '%s'.\n", g_source_name, yylineno, yytext);
+                            fprintf(stderr, "              GeneScript has no such symbol; sequences go in quotes and comments start with ^^.\n");
                         }
 
 %%

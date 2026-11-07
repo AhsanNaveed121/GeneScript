@@ -1,0 +1,2 @@
+ACGT
+Runtime Error (line 6): ordering operators compare single bases only, but got "ACGT" and "C".

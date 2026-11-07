@@ -1,0 +1,3 @@
+tests/fix4_lexical_error.gene:4: unrecognized character '$'.
+              GeneScript has no such symbol; sequences go in quotes and comments start with ^^.
+Compilation stopped: 1 error.

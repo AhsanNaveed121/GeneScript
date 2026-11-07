@@ -1,0 +1,15 @@
+^^ Fix 2 (error): arguments that do not match the parameter types.
+
+gene only_dna(dna d)
+    express d
+stop
+
+gene nucleus()
+    "AUG" -> rna r
+    "ATG" -> dna g
+    report only_dna(r)        ^^ error: rna passed to a dna parameter
+    report only_dna(#g)       ^^ error: integer #g passed to a gene
+    cycle i across g
+        report only_dna(i)    ^^ error: loop counter passed to a gene
+    stop
+stop

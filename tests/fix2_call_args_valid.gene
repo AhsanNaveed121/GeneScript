@@ -1,0 +1,12 @@
+^^ Fix 2 (valid): arguments match the parameter types.
+
+gene pair(dna d, rna r)
+    express fuse transcribe(d) r
+stop
+
+gene nucleus()
+    "AC" -> dna d
+    "GU" -> rna r
+    report pair(d, r)
+    report pair("GG", "AA")   ^^ literals without T/U take the parameter types
+stop

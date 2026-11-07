@@ -1,0 +1,2 @@
+tests/expected/*.out text eol=lf
+*.sh text eol=lf

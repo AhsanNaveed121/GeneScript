@@ -6,7 +6,10 @@ src/parser.tab.h
 src/lex.yy.c
 src/*.o
 *.o
+*.obj
+*.exe
 *.out
+!tests/expected/*.out
 
 # System / editor files
 .DS_Store

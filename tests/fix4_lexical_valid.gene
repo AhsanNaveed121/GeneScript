@@ -1,0 +1,6 @@
+^^ Fix 4 (valid): symbols like $ and % are allowed inside comments.
+
+gene nucleus()
+    "ATGC" -> dna g           ^^ costs $0, 100% DNA
+    report g
+stop

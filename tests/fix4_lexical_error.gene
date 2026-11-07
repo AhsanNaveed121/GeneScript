@@ -1,0 +1,6 @@
+^^ Fix 4 (error): an illegal character stops compilation; nothing is reported.
+
+gene nucleus()
+    "ATGC" -> dna g $
+    report g
+stop

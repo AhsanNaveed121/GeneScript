@@ -1,0 +1,21 @@
+^^ Fix 6 (valid): #s as a loop bound, s@i with counters or literals,
+^^ and cycle bounds that are literals, #s or an enclosing counter.
+
+gene suffixes(dna s)          ^^ every suffix of s, joined
+    "" -> dna out
+    cycle i from 0 to #s
+        cycle j from i to #s
+            fuse out s@j -> out
+        stop
+    stop
+    express out
+stop
+
+gene nucleus()
+    "ACG" -> dna g
+    report suffixes(g)
+    report fuse g@0 g@2
+    cycle k from 1 to 3
+        report g@k
+    stop
+stop

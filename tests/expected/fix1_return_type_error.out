@@ -1,0 +1,3 @@
+tests/fix1_return_type_error.gene:8: gene return type mismatch: returning dna but expected rna.
+              every express statement in a gene must return the same sequence type.
+Compilation stopped: 1 error.

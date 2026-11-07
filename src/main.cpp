@@ -8,6 +8,12 @@
 extern FILE* yyin;
 extern int yyparse();
 extern ProgramAST* g_program;
+extern const char* g_source_name;
+extern int g_lex_errors;
+
+static void printStopped(size_t count) {
+    std::cerr << "Compilation stopped: " << count << (count == 1 ? " error.\n" : " errors.\n");
+}
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -29,11 +35,18 @@ int main(int argc, char** argv) {
     }
 
     yyin = f;
+    g_source_name = filename.c_str();
     int parse_result = yyparse();
     fclose(yyin);
 
-    if (parse_result != 0 || !g_program) {
+    // Lexical or syntax errors: stop before semantic analysis and execution.
+    if (g_lex_errors > 0 || parse_result != 0) {
+        printStopped(g_lex_errors + (parse_result != 0 ? 1 : 0));
+        delete g_program;
         return 1;
+    }
+    if (!g_program) {
+        g_program = new ProgramAST(); // empty file: semantics reports the missing nucleus()
     }
 
     // Semantic Analysis
@@ -42,8 +55,7 @@ int main(int argc, char** argv) {
         for (const auto& err : sem.errors) {
             std::cerr << err;
         }
-        std::cerr << "Compilation stopped: " << sem.errors.size()
-                  << (sem.errors.size() == 1 ? " error.\n" : " errors.\n");
+        printStopped(sem.errors.size());
         delete g_program;
         return 1;
     }

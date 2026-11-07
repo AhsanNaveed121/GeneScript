@@ -50,6 +50,9 @@ test: $(TARGET)
 	@echo "=========================================="
 	@-$(TARGET) tests/error.gene
 	@echo "=========================================="
+	@echo "Running Bug-Fix Tests (tests/fix*.gene vs tests/expected/)"
+	@echo "=========================================="
+	@sh tests/run_tests.sh $(TARGET)
 
 clean:
 	rm -rf bin src/parser.tab.c src/parser.tab.h src/lex.yy.c src/*.o genec

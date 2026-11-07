@@ -1,0 +1,9 @@
+tests/fix5_ordering_error.gene:5: ordering operator '<' compares single bases only.
+              use a base such as 'G', head(s) or s@i; compare whole sequences with '='.
+tests/fix5_ordering_error.gene:8: ordering operator '>' compares single bases only.
+              use a base such as 'G', head(s) or s@i; compare whole sequences with '='.
+tests/fix5_ordering_error.gene:11: ordering operator '<=' compares single bases only.
+              use a base such as 'G', head(s) or s@i; compare whole sequences with '='.
+tests/fix5_ordering_error.gene:15: ordering operator '>=' compares single bases only.
+              use a base such as 'G', head(s) or s@i; compare whole sequences with '='.
+Compilation stopped: 4 errors.
