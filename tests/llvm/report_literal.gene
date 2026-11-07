@@ -1,0 +1,3 @@
+gene nucleus()
+    report "ATGC"
+stop

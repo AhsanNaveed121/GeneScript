@@ -54,7 +54,24 @@ test: $(TARGET)
 	@echo "=========================================="
 	@sh tests/run_tests.sh $(TARGET)
 
+# ---- Phase 2: LLVM backend (development tooling, Part 1) -------------------
+# `make` / `make test` above are unchanged and build only the interpreter.
+# interpreter.o is linked only because it holds the AST vtables.
+CLANG ?= clang
+LLVM_TARGET = bin/genescript-llvm
+LLVM_OBJS = src/codegen.o src/llvm_main.o src/semantics.o src/interpreter.o
+
+llvm: $(LLVM_TARGET)
+
+$(LLVM_TARGET): src/parser.tab.o src/lex.yy.o $(LLVM_OBJS) | bin
+	$(CXX) $(CXXFLAGS) -o $@ src/parser.tab.o src/lex.yy.o $(LLVM_OBJS)
+
+src/codegen.o: src/codegen.cpp include/codegen.h runtime/gs_runtime.h
+
+test-llvm: $(TARGET) $(LLVM_TARGET)
+	@CLANG="$(CLANG)" sh tests/llvm/run_llvm_tests.sh $(TARGET) $(LLVM_TARGET)
+
 clean:
 	rm -rf bin src/parser.tab.c src/parser.tab.h src/lex.yy.c src/*.o genec
 
-.PHONY: all clean test
+.PHONY: all clean test llvm test-llvm
