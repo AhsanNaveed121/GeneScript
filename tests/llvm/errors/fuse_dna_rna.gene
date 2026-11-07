@@ -1,0 +1,6 @@
+^^ fuse needs both operands of the same type.
+gene nucleus()
+    "ATG" -> dna d
+    "AUG" -> rna r
+    report fuse d r
+stop

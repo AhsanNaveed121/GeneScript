@@ -14,9 +14,15 @@ source.gene ─► lexer/parser ─► AST ─► SemanticAnalyzer ─► CodeGe
                                                     native executable
 ```
 
-**Status (Part 1 of 4):** supported constructs are gene definitions, `gene nucleus()` as
-the entry point, sequence/base literals, and `report`. Anything else stops compilation with
-`<file>:<line>: <construct> is not supported by the LLVM backend yet.`
+**Status (Part 2 of 4):** supported constructs are gene definitions, `gene nucleus()` as
+the entry point, sequence/base literals (including `""`), declarations (`e -> dna x`),
+assignments (`e -> x`), variable reads, `report`, `head`, `tail`, `transcribe`, `fuse`,
+`~`, `s@<integer literal>`, `=`, and `<`, `>`, `<=`, `>=`. `#s` is lowered to
+`gs_seq_len`, but semantics accepts it only as a `cycle` bound (Part 3). Anything else
+stops compilation with `<file>:<line>: <construct> is not supported by the LLVM backend yet.`
+
+Semantic errors are reported by the shared front end, with the same text as Phase 1,
+before any IR is written. The backend never writes a `.ll` for an invalid program.
 
 ## 1. Building and running (development flow)
 
@@ -31,6 +37,17 @@ make test-llvm                               # tests/llvm/*.gene: IR → verify 
 `make test-llvm` needs `clang` on `PATH`; set `CLANG=clang-18` or similar to pick a
 version. When `llvm-as` is installed, the test also runs the IR through it as a
 stand-alone verifier. Part 4 will fold all of this into the final `genec` CLI.
+
+The test runner (`tests/llvm/run_llvm_tests.sh`) has four sections:
+
+| Section | What it checks |
+|---|---|
+| `[runtime]` | `tests/llvm/runtime_unit.c` exercises the C runtime directly under ASan, including functions no valid Part 2 program reaches (`gs_seq_len`) and the refcount rules |
+| `[valid]` | Each `tests/llvm/*.gene` goes IR → `llvm-as` → `clang -Werror` → link → run. Output plus exit code must equal `expected/<name>.out` **and** the interpreter. The program is linked a second time against an AddressSanitizer build of the runtime and must produce identical output with no use-after-free, double-free or leak report |
+| `[errors]` | Each `tests/llvm/errors/*.gene` must be rejected with exit 1 and no `.ll` written. Diagnostics must equal `errors/<name>.err` **and** the interpreter's |
+| `[phase1]` | Every `tests/*.gene` goes through the backend. Programs using constructs not lowered yet are listed as SKIP; every other program must match the interpreter |
+
+`GS_NO_ASAN=1` skips the sanitizer runs.
 
 ## 2. Code layout
 
@@ -142,6 +159,24 @@ Every `IRValue` is either **owned** (+1; the holder must release it exactly once
 A borrowed variable read is safe while expressions are evaluated, because GeneScript
 expressions cannot write variables: a gene call only touches the callee's own locals.
 
+Every sequence slot is `alloca`'d in the `entry` block and initialized to `null` there,
+so a scope-exit release of a slot whose declaration never ran (possible once Part 3 adds
+branches) is a harmless `gs_seq_release(NULL)`. A literal stored into a variable needs no
+retain, because it is immortal (`makeOwned` skips `@` globals).
+
+Worked example (`g -> dna keep` then `tail(g) -> g`):
+
+```llvm
+%t1 = load ptr, ptr %v.g.0               ; borrowed read of g
+%t2 = call ptr @gs_seq_retain(ptr %t1)   ; keep needs its own +1
+store ptr %t2, ptr %v.keep.3
+%t4 = load ptr, ptr %v.g.0
+%t5 = call ptr @gs_seq_tail(ptr %t4)     ; new value (owned) computed FIRST
+%t6 = load ptr, ptr %v.g.0
+call void @gs_seq_release(ptr %t6)       ; then the old value is dropped
+store ptr %t5, ptr %v.g.0
+```
+
 ## 6. Runtime functions (current)
 
 | Function | Ownership | Purpose |
@@ -149,7 +184,32 @@ expressions cannot write variables: a gene call only touches the callee's own lo
 | `void gs_report(const GsSeq*)` | borrows | `report`: prints the bases, `\n`, then flushes (like `std::endl` in Phase 1) |
 | `GsSeq* gs_seq_retain(GsSeq*)` | +1, returns its argument | Ownership primitive |
 | `void gs_seq_release(GsSeq*)` | -1, frees at 0 | Ownership primitive; NULL and immortal are no-ops |
-| `GsSeq* gs_seq_alloc(i32 kind, const char*, i64 len)` | returns owned | Constructor for future operations |
+| `GsSeq* gs_seq_alloc(i32 kind, const char*, i64 len)` | returns owned | Constructor used by the operations below |
+| `int64_t gs_seq_len(s)` | borrows | `#s` (IR `i64`) |
+| `GsSeq* gs_seq_head(s)` / `gs_seq_tail(s)` | borrows, returns owned | `head` / `tail`; `""` when there is no base to return |
+| `GsSeq* gs_seq_at(s, i64 i)` | borrows, returns owned | `s@i`; `""` when out of range (Phase 1 behaviour) |
+| `GsSeq* gs_seq_fuse(a, b)` | borrows both, returns owned | `fuse a b`; safe when `a == b` |
+| `GsSeq* gs_seq_revcomp(s)` | borrows, returns owned | `~s` (DNA result) |
+| `GsSeq* gs_seq_transcribe(s)` | borrows, returns owned | `transcribe(s)` (RNA result) |
+| `int32_t gs_seq_equal(a, b)` | borrows both | `=`; codegen turns it into `i1` with `icmp ne 0` |
+| `int32_t gs_seq_compare_bases(a, b, i64 line)` | borrows both | Ordering operators: returns `<0`, `0` or `>0` and codegen applies `icmp slt/sgt/sle/sge 0`. If an operand is not exactly one base, prints Phase 1's `Runtime Error (line N): …` and calls `exit(1)` |
+
+Every operation returns a **fresh** heap object, even for `""`. Returning the input
+(for example, `tail` of a one-base sequence) would require retaining a borrowed `const`
+argument. That optimisation is possible, but the ABI does not guarantee it, so callers
+must not depend on object identity.
+
+Booleans (`i1`) and integers (`i64`) are plain SSA values with no ownership. Integer
+literals lower to immediate constants (`s@3` → `call @gs_seq_at(ptr %s, i64 3)`).
+
+### Phase 1 compatibility: `report <condition>`
+
+Semantics rejects `report` only for integers, so `report g = "A"` is accepted. The
+interpreter prints an empty line for it, because a boolean `Value` has an empty `str_val`.
+The backend reproduces this: it evaluates the condition, so the runtime single-base check
+still fires, then reports `""`. The proposal says only sequences may be printed, so the
+team may want to make semantics reject this. That would change Phase 1 behaviour, so it
+was left as is.
 
 Conventions for new runtime functions: use the `gs_` prefix, **borrow** every `GsSeq*`
 argument, and return **owned** results. Runtime errors print
@@ -157,14 +217,15 @@ argument, and return **owned** results. Runtime errors print
 Declare the new function in `gs_runtime.h`, add its IR `declare` string next to `RT_*` in
 `codegen.cpp`, and list it in the table above.
 
-## 7. Remaining work (Parts 2–4)
+## 7. Remaining work (Parts 3–4)
 
-- Variables (declaration, assignment, reads), `express`, gene calls.
-- Sequence operations in the runtime: `fuse`, `~`, `transcribe`, `head`, `tail`, `@`, `#`,
-  `=`, and the ordering comparisons, including Phase 1's runtime error for ordering on
-  non-single bases.
-- Control flow: `when` / `otherwise when` / `otherwise`, the three `cycle` / `grow` loops,
+- `express` and user-defined gene calls (the calling convention in §4–5 is already
+  fixed).
+- Control flow: `when` / `otherwise when` / `otherwise`, the three `cycle` / `grow` loops
+  (counters as `i64` values; `s@i` with a counter; `#s` bounds via `gs_seq_len`),
   `halt`, `skip`, and `both` / `either` / `lacks` with short-circuit evaluation.
+  `both` / `either` / `lacks` were left for Part 3 because short-circuiting needs
+  branches.
 - Top-level statements outside any gene (only used by `error.gene`, which semantics
   rejects anyway).
 - The final `genec` CLI that drives clang (Part 4), plus running every Phase 1 test through

@@ -1,0 +1,3 @@
+tests/llvm/errors/fuse_dna_rna.gene:5: cannot fuse dna with rna.
+              fuse requires both sequences to have the same biological type.
+Compilation stopped: 1 error.

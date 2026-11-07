@@ -1,0 +1,3 @@
+tests/llvm/errors/mixed_literal.gene:3: mixed DNA and RNA bases in literal.
+              DNA uses T and RNA uses U; they cannot be mixed.
+Compilation stopped: 1 error.

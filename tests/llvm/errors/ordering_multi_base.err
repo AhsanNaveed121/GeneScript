@@ -1,0 +1,3 @@
+tests/llvm/errors/ordering_multi_base.gene:3: ordering operator '<' compares single bases only.
+              use a base such as 'G', head(s) or s@i; compare whole sequences with '='.
+Compilation stopped: 1 error.

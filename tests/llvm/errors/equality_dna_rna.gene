@@ -1,0 +1,6 @@
+^^ = compares sequences of the same type only.
+gene nucleus()
+    "ATG" -> dna d
+    "AUG" -> rna r
+    report d = r
+stop

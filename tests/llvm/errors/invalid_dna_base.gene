@@ -1,0 +1,5 @@
+^^ Invalid base in a DNA literal.
+gene nucleus()
+    "ATXG" -> dna x
+    report x
+stop

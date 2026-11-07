@@ -1,0 +1,14 @@
+^^ RNA values and nested operations.
+gene nucleus()
+    "AUGC" -> rna r
+    report r                                   ^^ AUGC
+    report head(r)                             ^^ A
+    report tail(r)                             ^^ UGC
+    report fuse r "GG"                         ^^ AUGCGG: "GG" takes rna
+    report fuse (fuse "A" "C") (fuse "G" "T")  ^^ ACGT
+    report fuse "A" fuse "C" "G"               ^^ ACG: prefix fuse nests right
+    report ~fuse "AA" "CC"                     ^^ GGTT
+    report transcribe(~"AATT")                 ^^ AAUU
+    report fuse transcribe(head("TA")) tail(r) ^^ UUGC
+    report tail(tail(tail(tail(tail(r)))))     ^^ (empty)
+stop

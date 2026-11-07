@@ -1,0 +1,5 @@
+^^ An RNA literal (contains U) stored in a dna variable.
+gene nucleus()
+    "AUG" -> dna x
+    report x
+stop

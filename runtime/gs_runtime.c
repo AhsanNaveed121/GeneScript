@@ -1,9 +1,9 @@
 /*
  * GeneScript native runtime.  See gs_runtime.h and docs/LLVM_BACKEND.md.
  *
- * Part 1 scope: only what the first compiled program needs (report) plus the
- * reference-counting primitives that define the ownership model every later
- * operation will follow.
+ * Part 1: report + the reference-counting primitives that define the
+ * ownership model.  Part 2: the sequence operations (head, tail, @, #,
+ * fuse, ~, transcribe, =, ordering).
  */
 #include "gs_runtime.h"
 
@@ -69,4 +69,80 @@ void gs_report(const GsSeq *s) {
     }
     fputc('\n', stdout);
     fflush(stdout);
+}
+
+/* ---- Sequence operations ------------------------------------------------ */
+
+int64_t gs_seq_len(const GsSeq *s) {
+    return s->len;
+}
+
+/* Owned copy of s->data[from .. from+len). */
+static GsSeq *gs_slice(const GsSeq *s, int64_t from, int64_t len) {
+    return gs_seq_alloc(s->kind, s->data + from, len);
+}
+
+GsSeq *gs_seq_head(const GsSeq *s) {
+    return gs_slice(s, 0, s->len > 0 ? 1 : 0);
+}
+
+GsSeq *gs_seq_tail(const GsSeq *s) {
+    return s->len > 1 ? gs_slice(s, 1, s->len - 1) : gs_slice(s, 0, 0);
+}
+
+GsSeq *gs_seq_at(const GsSeq *s, int64_t i) {
+    return (i >= 0 && i < s->len) ? gs_slice(s, i, 1) : gs_slice(s, 0, 0);
+}
+
+GsSeq *gs_seq_fuse(const GsSeq *a, const GsSeq *b) {
+    if (a->len > INT64_MAX - b->len) {
+        gs_fatal("sequence too long");
+    }
+    /* An empty operand carries no reliable kind; take it from the other. */
+    int32_t kind = a->len > 0 ? a->kind : b->kind;
+    GsSeq *r = gs_seq_alloc(kind, NULL, a->len + b->len);
+    memcpy(r->data, a->data, (size_t)a->len);
+    memcpy(r->data + a->len, b->data, (size_t)b->len);
+    return r;
+}
+
+GsSeq *gs_seq_revcomp(const GsSeq *s) {
+    GsSeq *r = gs_seq_alloc(GS_KIND_DNA, NULL, s->len);
+    for (int64_t i = 0; i < s->len; ++i) {
+        char c = s->data[s->len - 1 - i];
+        switch (c) {
+            case 'A': c = 'T'; break;
+            case 'T': c = 'A'; break;
+            case 'C': c = 'G'; break;
+            case 'G': c = 'C'; break;
+            default: break; /* unreachable for checked DNA; same as Phase 1 */
+        }
+        r->data[i] = c;
+    }
+    return r;
+}
+
+GsSeq *gs_seq_transcribe(const GsSeq *s) {
+    GsSeq *r = gs_seq_alloc(GS_KIND_RNA, s->data, s->len);
+    for (int64_t i = 0; i < r->len; ++i) {
+        if (r->data[i] == 'T') r->data[i] = 'U';
+    }
+    return r;
+}
+
+int32_t gs_seq_equal(const GsSeq *a, const GsSeq *b) {
+    return a->len == b->len && memcmp(a->data, b->data, (size_t)a->len) == 0;
+}
+
+int32_t gs_seq_compare_bases(const GsSeq *a, const GsSeq *b, int64_t line) {
+    if (a->len != 1 || b->len != 1) {
+        /* Same text and exit status as the interpreter's runtime_error. */
+        fflush(stdout);
+        fprintf(stderr,
+                "Runtime Error (line %lld): ordering operators compare single bases only, "
+                "but got \"%s\" and \"%s\".\n",
+                (long long)line, a->data, b->data);
+        exit(1);
+    }
+    return (int32_t)(unsigned char)a->data[0] - (int32_t)(unsigned char)b->data[0];
 }

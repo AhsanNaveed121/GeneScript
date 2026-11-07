@@ -1,0 +1,4 @@
+^^ Ordering on a multi-base literal is caught at compile time.
+gene nucleus()
+    report "AC" < 'G'
+stop

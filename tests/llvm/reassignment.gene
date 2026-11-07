@@ -1,0 +1,24 @@
+^^ Reassignment, self-reference and aliasing (ownership stress).
+gene nucleus()
+    "ATGC" -> dna g
+    g -> dna keep             ^^ keep and g share one value
+    tail(g) -> g
+    report g                  ^^ TGC
+    g -> g
+    report g                  ^^ TGC
+    fuse g g -> g
+    report g                  ^^ TGCTGC
+    ~g -> g
+    report g                  ^^ GCAGCA
+    "" -> g
+    report g                  ^^ (empty)
+    fuse g "A" -> g
+    fuse g g -> g
+    fuse g g -> g
+    report g                  ^^ AAAA
+    report keep               ^^ ATGC: unaffected by g's updates
+    transcribe(keep) -> rna r
+    tail(r) -> r
+    fuse r r -> r
+    report r                  ^^ UGCUGC
+stop

@@ -1,0 +1,7 @@
+^^ Part 2, Example A: declaration, transcribe, reverse complement.
+gene nucleus()
+    "ATGC" -> dna g
+    report g
+    report transcribe(g)
+    report ~g
+stop

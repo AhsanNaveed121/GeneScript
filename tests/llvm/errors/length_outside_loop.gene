@@ -1,0 +1,5 @@
+^^ #s is only allowed as a loop bound.
+gene nucleus()
+    "ACGT" -> dna g
+    report #g
+stop

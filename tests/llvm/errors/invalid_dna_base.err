@@ -1,0 +1,3 @@
+tests/llvm/errors/invalid_dna_base.gene:3: invalid base 'X' in DNA literal.
+              DNA allows only A, C, G, T.
+Compilation stopped: 1 error.

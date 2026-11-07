@@ -1,0 +1,3 @@
+tests/llvm/errors/length_outside_loop.gene:4: length '#' can only be used as a loop bound.
+              #s cannot be stored, compared, passed, returned or reported; use it as in 'cycle i from 0 to #s'.
+Compilation stopped: 1 error.

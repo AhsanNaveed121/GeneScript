@@ -1,3 +1,4 @@
 tests/expected/*.out text eol=lf
 *.sh text eol=lf
 tests/llvm/expected/*.out text eol=lf
+tests/llvm/errors/*.err text eol=lf

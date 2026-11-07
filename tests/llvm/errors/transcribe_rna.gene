@@ -1,0 +1,5 @@
+^^ transcribe() needs DNA.
+gene nucleus()
+    "AUG" -> rna r
+    report transcribe(r)
+stop

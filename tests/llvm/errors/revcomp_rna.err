@@ -1,0 +1,3 @@
+tests/llvm/errors/revcomp_rna.gene:4: reverse complement (~) is only supported for DNA.
+              RNA reverse complement is outside biological scope.
+Compilation stopped: 1 error.

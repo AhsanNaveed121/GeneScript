@@ -67,6 +67,42 @@ GsSeq *gs_seq_alloc(int32_t kind, const char *bases, int64_t len);
  * BORROWS `s`. */
 void gs_report(const GsSeq *s);
 
+/* ---- Sequence operations (Part 2) --------------------------------------
+ * Every function BORROWS its GsSeq* arguments and every GsSeq* result is a
+ * fresh OWNED (+1) heap object, even when it is empty.  Semantics fixes all
+ * DNA/RNA types at compile time; `kind` in the result is informational. */
+
+/* #s -> number of bases (IR: i64). */
+int64_t gs_seq_len(const GsSeq *s);
+
+/* head(s) -> first base, or "" when s is empty.  Keeps s's kind. */
+GsSeq *gs_seq_head(const GsSeq *s);
+
+/* tail(s) -> s without its first base, or "" when len(s) <= 1. */
+GsSeq *gs_seq_tail(const GsSeq *s);
+
+/* s@i -> base at 0-based position i, or "" when i is out of range
+ * (same as the Phase 1 interpreter). */
+GsSeq *gs_seq_at(const GsSeq *s, int64_t i);
+
+/* fuse a b -> a followed by b. */
+GsSeq *gs_seq_fuse(const GsSeq *a, const GsSeq *b);
+
+/* ~s -> reverse complement (A<->T, C<->G, reversed).  Result is DNA. */
+GsSeq *gs_seq_revcomp(const GsSeq *s);
+
+/* transcribe(s) -> every T replaced by U.  Result is RNA. */
+GsSeq *gs_seq_transcribe(const GsSeq *s);
+
+/* a = b -> 1 if the bases are identical, else 0 (IR: i32). */
+int32_t gs_seq_equal(const GsSeq *a, const GsSeq *b);
+
+/* Ordering (<, >, <=, >=) on single bases: returns <0, 0 or >0 like strcmp
+ * (IR: i32; codegen applies the operator with icmp).  If either operand is
+ * not exactly one base, prints the Phase 1 runtime error for source line
+ * `line` to stderr and exits with status 1. */
+int32_t gs_seq_compare_bases(const GsSeq *a, const GsSeq *b, int64_t line);
+
 #ifdef __cplusplus
 }
 #endif

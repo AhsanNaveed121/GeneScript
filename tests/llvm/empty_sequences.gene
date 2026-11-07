@@ -1,0 +1,17 @@
+^^ Empty sequences: every operation on "" and on single bases.
+gene nucleus()
+    "" -> dna e
+    report e                  ^^ (empty line)
+    report fuse e "A"         ^^ A
+    report fuse "C" e         ^^ C
+    report head(e)            ^^ (empty)
+    report tail(e)            ^^ (empty)
+    report tail('A')          ^^ (empty): tail of one base
+    report head('G')          ^^ G
+    report e@0                ^^ (empty): out of range
+    report ~e                 ^^ (empty)
+    report transcribe(e)      ^^ (empty)
+    "" -> rna r
+    report fuse r "GU"        ^^ GU: "" takes the rna type
+    report ""                 ^^ (empty)
+stop

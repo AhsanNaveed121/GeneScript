@@ -1,0 +1,3 @@
+tests/llvm/errors/index_not_integer.gene:5: position in s@i must be a loop counter or an integer literal.
+              write s@i inside 'cycle i ...' or use a fixed position such as s@0.
+Compilation stopped: 1 error.

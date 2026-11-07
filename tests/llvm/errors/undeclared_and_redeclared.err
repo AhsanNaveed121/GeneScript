@@ -1,0 +1,4 @@
+tests/llvm/errors/undeclared_and_redeclared.gene:3: undeclared variable or sequence 'y'.
+tests/llvm/errors/undeclared_and_redeclared.gene:4: assignment to undeclared variable 'z'.
+tests/llvm/errors/undeclared_and_redeclared.gene:6: redeclaration of variable 'g' in the same scope.
+Compilation stopped: 3 errors.

@@ -1,0 +1,7 @@
+^^ Part 2, Example B: head, tail, fuse.
+gene nucleus()
+    "ATGC" -> dna g
+    report head(g)
+    report tail(g)
+    report fuse "AT" "GC"
+stop

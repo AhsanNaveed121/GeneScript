@@ -1,0 +1,17 @@
+^^ Indexing with integer literals, on DNA, RNA and expressions.
+gene nucleus()
+    "GATTACA" -> dna g
+    report g@0                ^^ G
+    report g@6                ^^ A
+    report g@7                ^^ (empty): one past the end
+    report g@100              ^^ (empty)
+    report fuse g@0 g@3       ^^ GT
+    report (fuse g "C")@7     ^^ C
+    report tail(g)@0          ^^ A
+    report (~g)@0             ^^ T
+    "GAU" -> rna r
+    report r@2                ^^ U
+    report transcribe(g)@2    ^^ U
+    g@1 -> dna b
+    report b                  ^^ A
+stop

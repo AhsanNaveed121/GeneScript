@@ -1,0 +1,12 @@
+^^ = and ordering operators.  Without `when` (Part 3) a condition can only be
+^^ reported; Phase 1 prints an empty line for it, so the native code must too.
+^^ Each comparison is still evaluated, so the runtime single-base check runs.
+gene nucleus()
+    "ACGT" -> dna g
+    report g = "ACGT"
+    report head(g) < 'C'
+    report g@3 >= 'G'
+    "G" -> dna b
+    report b <= g@2           ^^ b holds one base: passes the runtime check
+    report g                  ^^ ACGT
+stop

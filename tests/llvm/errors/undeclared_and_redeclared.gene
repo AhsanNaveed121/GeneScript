@@ -1,0 +1,7 @@
+^^ Undeclared variable, assignment to undeclared, redeclaration.
+gene nucleus()
+    report y
+    "A" -> z
+    "AC" -> dna g
+    "GT" -> dna g
+stop

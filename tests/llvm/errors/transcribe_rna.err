@@ -1,0 +1,3 @@
+tests/llvm/errors/transcribe_rna.gene:4: transcribe() requires DNA sequence as argument.
+              Transcription converts DNA into RNA.
+Compilation stopped: 1 error.

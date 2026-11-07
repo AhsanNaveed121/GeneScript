@@ -1,0 +1,6 @@
+^^ Assigning an RNA value to a DNA variable.
+gene nucleus()
+    "ATG" -> dna d
+    transcribe(d) -> d
+    report d
+stop

@@ -1,0 +1,7 @@
+^^ Ordering on a variable holding several bases: a runtime error, as in Phase 1.
+gene nucleus()
+    "ACGT" -> dna g
+    report g
+    report g < 'C'            ^^ error at run time: g has 4 bases
+    report "AAAA"             ^^ never reached
+stop

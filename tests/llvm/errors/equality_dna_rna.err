@@ -1,0 +1,3 @@
+tests/llvm/errors/equality_dna_rna.gene:5: cannot compare dna with rna using '='.
+              comparison '=' requires sequences of the same type.
+Compilation stopped: 1 error.

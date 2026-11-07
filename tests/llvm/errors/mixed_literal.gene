@@ -1,0 +1,4 @@
+^^ T and U mixed in one literal.
+gene nucleus()
+    report "ATUG"
+stop

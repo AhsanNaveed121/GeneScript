@@ -1,0 +1,5 @@
+^^ Reverse complement is DNA-only.
+gene nucleus()
+    "AUG" -> rna r
+    report ~r
+stop

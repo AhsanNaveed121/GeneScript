@@ -1,0 +1,2 @@
+tests/llvm/errors/assign_rna_to_dna.gene:4: cannot assign rna to variable 'd' of type dna.
+Compilation stopped: 1 error.

@@ -11,9 +11,11 @@
 //   CodeGenerator - GeneScript-specific lowering of AST nodes onto IRContext,
 //                   following the runtime ABI in docs/LLVM_BACKEND.md.
 //
-// Part 1 supports: gene definitions, `gene nucleus()` as the entry point,
-// sequence literals, and `report`.  Every other construct produces a clean
-// "not supported yet" diagnostic instead of wrong code.
+// Supported so far (Parts 1-2): gene definitions, `gene nucleus()` as the
+// entry point, sequence/base literals, declarations, assignments, variable
+// reads, report, head/tail/transcribe, fuse, ~, s@<literal>, #s (lowering
+// only), = and the ordering operators.  Every other construct produces a
+// clean "not supported yet" diagnostic instead of wrong code.
 
 #include "ast.h"
 #include "semantics.h"
@@ -80,7 +82,10 @@ public:
     bool blockTerminated() const { return terminated_; }
 
     // Emits an `alloca` in the function's entry block; returns the pointer.
-    std::string emitAlloca(const std::string& type, const std::string& hint);
+    // A non-empty `init` is stored into the slot in the entry block too
+    // (sequence slots start as `null`, which gs_seq_release ignores).
+    std::string emitAlloca(const std::string& type, const std::string& hint,
+                           const std::string& init = "");
 
     // ---- Scopes ----------------------------------------------------------
     void pushScope();
@@ -146,9 +151,21 @@ private:
     void genStmt(StmtAST* stmt);
     IRValue genExpr(ExprAST* expr);
 
+    void genDecl(DeclStmtAST* decl);
+    void genAssign(AssignStmtAST* assign);
+    void genReport(ReportStmtAST* rep);
+    IRValue genVar(VarExprAST* var);
+    IRValue genBinary(BinaryExprAST* bin);
+    // Calls a runtime `ptr fn(ptr)` on a sequence operand, releasing the
+    // operand if owned; the result is owned and has type `result_type`
+    // (TYPE_UNKNOWN = same type as the operand).
+    IRValue genSeqUnary(ExprAST* operand, const char* fn, DataType result_type);
+
     // Ownership helpers (see docs/LLVM_BACKEND.md, "Ownership").
     void releaseIfOwned(const IRValue& v);
     void releaseScopeVars(const std::vector<IRVariable>& vars);
+    // Returns an owned reference to v's sequence (retains if borrowed).
+    std::string makeOwned(const IRValue& v);
 
     static std::string llvmType(DataType t);
     void unsupported(const ASTNode* node, const std::string& what);

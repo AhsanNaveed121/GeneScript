@@ -1,0 +1,6 @@
+^^ s@i position must be an integer literal or loop counter.
+gene nucleus()
+    "ACGT" -> dna g
+    "A" -> dna x
+    report g@x
+stop

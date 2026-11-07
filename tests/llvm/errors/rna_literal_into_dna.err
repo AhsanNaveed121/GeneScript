@@ -1,0 +1,3 @@
+tests/llvm/errors/rna_literal_into_dna.gene:3: invalid base 'U' in DNA literal.
+              base 'U' is RNA only; DNA allows only A, C, G, T.
+Compilation stopped: 1 error.
