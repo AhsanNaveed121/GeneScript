@@ -14,14 +14,16 @@ source.gene ─► lexer/parser ─► AST ─► SemanticAnalyzer ─► CodeGe
                                                     native executable
 ```
 
-**Status (Part 3 of 4):** supported constructs are gene definitions, `gene nucleus()` as
-the entry point, sequence/base literals (including `""`), declarations (`e -> dna x`),
-assignments (`e -> x`), variable reads, `report`, `head`, `tail`, `transcribe`, `fuse`,
-`~`, `s@i` (literal or loop counter), `#s` as a `cycle` bound, `=`, `<`, `>`, `<=`, `>=`,
-`bound` / `unbound`, `both` / `either` / `lacks`, `when` / `otherwise when` /
-`otherwise`, `cycle i across s`, `cycle i from a to b`, `grow until`, `halt` and `skip`
-(§8). `express` and gene calls are Part 4; using them stops compilation with
-`<file>:<line>: <construct> is not supported by the LLVM backend yet.`
+**Status (complete, Part 4 of 4):** the backend compiles the whole language: genes with
+`dna`/`rna` parameters, gene calls (recursion, mutual recursion, forward references),
+`express`, `gene nucleus()` as the entry point, sequence/base literals (including `""`),
+declarations (`e -> dna x`), assignments (`e -> x`), `report`, `head`, `tail`,
+`transcribe`, `fuse`, `~`, `s@i` (literal or loop counter), `#s` as a `cycle` bound, `=`,
+`<`, `>`, `<=`, `>=`, `bound` / `unbound`, `both` / `either` / `lacks`, `when` /
+`otherwise when` / `otherwise`, `cycle i across s`, `cycle i from a to b`, `grow until`,
+`halt` and `skip` (§8). A construct that semantics should have rejected stops compilation
+with `<file>:<line>: <construct> is not supported by the LLVM backend yet.` instead of
+producing wrong code.
 
 Semantic errors are reported by the shared front end, with the same text as Phase 1,
 before any IR is written. The backend never writes a `.ll` for an invalid program.
@@ -29,7 +31,7 @@ before any IR is written. The backend never writes a `.ll` for an invalid progra
 ## 1. Building and running (development flow)
 
 ```bash
-make llvm                                    # builds bin/genescript-llvm (make/make test unchanged)
+make llvm                                    # builds bin/genescript-llvm (also built by make)
 bin/genescript-llvm prog.gene -o prog.ll     # IR to a file (stdout without -o)
 clang prog.ll runtime/gs_runtime.c -o prog   # native executable
 ./prog
@@ -38,7 +40,8 @@ make test-llvm                               # tests/llvm/*.gene: IR → verify 
 
 `make test-llvm` needs `clang` on `PATH`; set `CLANG=clang-18` or similar to pick a
 version. When `llvm-as` is installed, the test also runs the IR through it as a
-stand-alone verifier. Part 4 will fold all of this into the final `genec` CLI.
+stand-alone verifier. For normal use, `genec -S` writes IR and `genec -c` runs clang for
+you (see README.md); `make test-compiler` runs these tests and the end-to-end `genec` tests.
 
 The test runner (`tests/llvm/run_llvm_tests.sh`) has four sections:
 
@@ -219,15 +222,13 @@ argument, and return **owned** results. Runtime errors print
 Declare the new function in `gs_runtime.h`, add its IR `declare` string next to `RT_*` in
 `codegen.cpp`, and list it in the table above.
 
-## 7. Remaining work (Part 4)
+## 7. Genes and known differences (Part 4)
 
-- `express` and user-defined gene calls (the calling convention in §4–5 is already
-  fixed). `express` inside a loop must release `liveVars()`, which already includes each
-  enclosing `cycle across` loop's held sequence (§8).
-- Top-level statements outside any gene (only used by `error.gene`, which semantics
-  rejects anyway).
-- The final `genec` CLI that drives clang, plus running every Phase 1 test through the
-  native path (they are now blocked only by `express`).
+- `express e` makes `e` owned first, then releases `liveVars()` (parameters, block
+  locals and each enclosing `cycle across` loop's held sequence) and returns.
+- A gene call evaluates its arguments left to right, passes them borrowed, and releases
+  owned argument temporaries after the call; the result is owned (§4–5).
+- Statements outside every gene are rejected by semantics, so the backend never sees them.
 - Known Phase 1 difference: the interpreter keeps one flat set of variables per gene call,
   so an inner declaration or loop counter that reuses an outer name overwrites the outer
   one. The backend uses block scope, which matches the proposal ("counters … exist only

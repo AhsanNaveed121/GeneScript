@@ -8,6 +8,7 @@ src/*.o
 *.o
 *.obj
 *.exe
+*.zip
 *.ll
 *.bc
 *.s
@@ -18,6 +19,7 @@ src/*.o
 !tests/compiler/runtime_errors/expected/*.out
 
 # System / editor files
+__pycache__/
 .DS_Store
 Thumbs.db
 *.Zone.Identifier
