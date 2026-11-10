@@ -25,7 +25,7 @@ belongs, runs without complaint and only shows up later as a wrong result. GeneS
 `dna` and `rna` built-in types and checks them before the program runs, with error messages
 that state the biological rule that was broken.
 
-Key ideas from the proposal (`GeneScript_CC_proposal (1).pdf`):
+Key ideas from the proposal (`docs/GeneScript_Proposal.pdf`):
 
 - **Built-in DNA and RNA types.** DNA may contain only A, C, G, T; RNA only A, C, G, U.
   Any other letter, or a mix of the two alphabets, is a compile-time error.
@@ -117,16 +117,19 @@ The full ABI (value layout, calling convention, ownership rules) is in
 |---|---|
 | `build-essential` (g++, make) | building everything |
 | `flex`, `bison` | generating the lexer and parser |
-| `clang` | `genec -c` and the compiler tests |
-| `llvm` | `llvm-as`, used by the compiler tests to verify IR (optional) |
+| `clang` | `genec -c` ahead-of-time compiler and compiler tests |
+| `llvm` | `llvm-as`, used by compiler tests to verify IR (optional) |
+| `python3-reportlab` | generating `README.pdf` from markdown (`make pdf`) |
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential flex bison clang llvm
+sudo apt install -y build-essential flex bison clang llvm python3-reportlab
 ```
 
-The project was verified on Ubuntu 26.04.1 LTS with g++ 15.2.0, flex 2.6.4,
-GNU Bison 3.8.2, GNU Make 4.4.1 and Ubuntu clang 21.1.8.
+*(Alternatively, if using Python virtual environments: `pip install reportlab`)*
+
+The project was verified on Ubuntu 24.04 and 26.04 LTS with g++ 13/15, flex 2.6.4,
+GNU Bison 3.8.2, GNU Make 4.4.1 and Clang 18/21.
 
 On Windows, use WSL (Ubuntu) and run every command inside the Ubuntu terminal. The
 programs built by `make` are Linux executables and cannot run from Git Bash or PowerShell.
@@ -255,7 +258,9 @@ stop
 ```
 
 ```text
-$ ./genec tests/sample1_filter.gene
+$ ./genec tests/sample1_filter.gene                     # Phase 1: Interpreter
+$ ./genec -c tests/sample1_filter.gene -o sample1       # Phase 2: AOT Compiler
+$ ./sample1                                            # Run native executable
 GGCCG
 TACAATGGCCAT
 AUGGCCAUUGUA
@@ -306,8 +311,9 @@ stop
 ```
 
 ```text
-$ ./genec -c tests/sample2_mergesort.gene -o mergesort
-$ ./mergesort
+$ ./genec tests/sample2_mergesort.gene                  # Phase 1: Interpreter
+$ ./genec -c tests/sample2_mergesort.gene -o mergesort  # Phase 2: AOT Compiler
+$ ./mergesort                                          # Run native executable
 AAACGTT
 ```
 
@@ -413,12 +419,13 @@ Runtime Error (line 3): ordering operators compare single bases only, but got "A
 | `runtime/gs_runtime.h`, `runtime/gs_runtime.c` | C runtime linked into every native program |
 | `docs/LLVM_BACKEND.md` | Phase 2 design: runtime ABI, calling convention, ownership, control flow |
 | `Makefile` | Build and test targets (sections 5 and 11) |
-| `generate_pdf.py` | Builds `README.pdf` from `README.md` (`make pdf`, needs `pip install reportlab`) |
+| `generate_pdf.py` | Builds `README.pdf` from `README.md` (`make pdf`, requires `reportlab`) |
+| `CMDS.txt` | Quick terminal reference cheat-sheet for Phase 1 & Phase 2 commands |
 | `tests/*.gene`, `tests/expected/` | Phase 1 tests: the proposal samples, `error.gene`, and regression tests `fix*.gene` |
 | `tests/run_tests.sh` | Phase 1 regression test runner |
 | `tests/llvm/` | Phase 2 backend tests (valid programs, `errors/`, `expected/`), `runtime_unit.c`, runner |
 | `tests/compiler/` | End-to-end `genec` tests: features, `runtime_errors/`, `errors/`, `expected/`, runner |
-| `GeneScript_CC_proposal (1).pdf` | The original language proposal |
+| `docs/GeneScript_Proposal.pdf` | The original language proposal |
 | `bin/` (generated) | Built programs and test output; removed by `make clean` |
 
 ## 11. Automated Tests
