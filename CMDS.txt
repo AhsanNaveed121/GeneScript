@@ -1,0 +1,56 @@
+
+
+0. INSTALL DEPENDENCIES (Ubuntu / Debian / WSL):
+--------------------------------------------------------------------------------
+sudo apt update && sudo apt install -y build-essential flex bison clang llvm python3-reportlab
+
+
+1. BUILD THE PROJECT:
+--------------------------------------------------------------------------------
+# Build everything (Phase 1 Interpreter + Phase 2 AOT Compiler):
+make
+
+# Build ONLY Phase 1 interpreter:
+make interpreter
+
+# Build ONLY Phase 2 compiler tools:
+make compiler
+
+# Clean all build artifacts:
+make clean
+
+
+2. PHASE 1: TREE-WALK INTERPRETER
+--------------------------------------------------------------------------------
+# Run individual GeneScript programs via interpreter:
+./genec tests/sample1_filter.gene
+./genec tests/sample2_mergesort.gene
+./genec tests/error.gene
+
+# Run Phase 1 automated regression test suite:
+make test
+
+
+3. PHASE 2: AHEAD-OF-TIME (AOT) COMPILER
+--------------------------------------------------------------------------------
+# (A) Compile GeneScript program directly to a native executable:
+./genec -c tests/sample1_filter.gene -o sample1
+./sample1
+
+./genec -c tests/sample2_mergesort.gene -o mergesort
+./mergesort
+
+# (B) Emit LLVM IR (.ll) text:
+./genec -S tests/sample1_filter.gene -o sample1.ll
+
+# (C) Manually compile emitted LLVM IR with Clang + Runtime:
+clang -O2 sample1.ll runtime/gs_runtime.c -o sample1
+./sample1
+
+# (D) Run Phase 2 automated test suites (Backend + End-to-End):
+make test-compiler
+
+# (E) Run only LLVM backend tests:
+make test-llvm
+
+
